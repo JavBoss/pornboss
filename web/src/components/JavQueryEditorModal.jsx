@@ -5,9 +5,11 @@ import SearchIcon from '@mui/icons-material/Search'
 import { Slider } from '@mui/material'
 import { fetchJavFilterOptions } from '@/api'
 import AppModal from '@/components/AppModal'
+import { isUserJavTag } from '@/constants/jav'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { getIdolDisplayName } from '@/utils/javIdol'
+import { withJavTagDisplayName } from '@/utils/javTag'
 
 const EMPTY_FILTER_OPTIONS = {
   total: 0,
@@ -90,6 +92,7 @@ export default function JavQueryEditorModal({
   prefix = '',
   soloOnly = false,
   preferChineseName = false,
+  showSimplifiedTags = false,
   favoriteGroupId = null,
   favoriteRatingEnabled = false,
   favoriteRatingMin = 0.5,
@@ -308,9 +311,12 @@ export default function JavQueryEditorModal({
   const tagMap = useMemo(
     () =>
       new Map(
-        [...(tagOptions || []), ...(filterOptions.tags || [])].map((tag) => [Number(tag.id), tag])
+        [...(tagOptions || []), ...(filterOptions.tags || [])].map((tag) => [
+          Number(tag.id),
+          withJavTagDisplayName(tag, showSimplifiedTags),
+        ])
       ),
-    [filterOptions.tags, tagOptions]
+    [filterOptions.tags, showSimplifiedTags, tagOptions]
   )
 
   const idolMap = useMemo(() => {
@@ -341,6 +347,7 @@ export default function JavQueryEditorModal({
     const selected = new Set(selectedTagIds.map(Number))
     const list = Array.isArray(filterOptions.tags) ? filterOptions.tags : []
     return [...list]
+      .map((tag) => withJavTagDisplayName(tag, showSimplifiedTags))
       .filter((tag) => {
         if (selected.has(Number(tag?.id))) return false
         if (!query) return true
@@ -351,13 +358,15 @@ export default function JavQueryEditorModal({
           .includes(query)
       })
       .sort((a, b) => {
+        const typeOrder = Number(isUserJavTag(b)) - Number(isUserJavTag(a))
+        if (typeOrder !== 0) return typeOrder
         const countA = Number.isFinite(a?.count) ? a.count : 0
         const countB = Number.isFinite(b?.count) ? b.count : 0
         if (countB !== countA) return countB - countA
         return String(a?.name || '').localeCompare(String(b?.name || ''))
       })
       .slice(0, 120)
-  }, [filterOptions.tags, selectedTagIds, tagSearch])
+  }, [filterOptions.tags, selectedTagIds, showSimplifiedTags, tagSearch])
 
   const filteredIdols = useMemo(() => {
     const query = idolSearch.trim().toLowerCase()
@@ -847,6 +856,11 @@ export default function JavQueryEditorModal({
                   <span
                     key={`${tag.id}-${tag.provider || 0}`}
                     className="inline-flex max-w-full items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                    title={
+                      isUserJavTag(tag)
+                        ? zh('自定义标签', 'Custom tag')
+                        : zh('刮削标签', 'Scraped tag')
+                    }
                   >
                     <span className="truncate">{tag.name}</span>
                     <button
@@ -882,6 +896,7 @@ export default function JavQueryEditorModal({
                   ) : filteredTags.length > 0 ? (
                     filteredTags.map((tag) => {
                       const checked = selectedTagIds.includes(Number(tag.id))
+                      const isUser = isUserJavTag(tag)
                       return (
                         <button
                           type="button"
@@ -906,6 +921,17 @@ export default function JavQueryEditorModal({
                             aria-hidden="true"
                           />
                           <span className="min-w-0 flex-1 truncate text-slate-800">{tag.name}</span>
+                          <span
+                            className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
+                              isUser
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-orange-50 text-orange-700'
+                            }`}
+                          >
+                            {isUser
+                              ? zh('自定义标签', 'Custom tag')
+                              : zh('刮削标签', 'Scraped tag')}
+                          </span>
                           {Number.isFinite(tag?.count) ? (
                             <span className="shrink-0 text-xs text-slate-400">
                               {zh(`${tag.count} 部`, `${tag.count} works`)}

@@ -4423,6 +4423,7 @@ export default function App() {
         prefix={javPrefix}
         soloOnly={javSoloOnly}
         preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
+        showSimplifiedTags={configFlag(config?.jav_tag_show_simplified)}
         favoriteGroupId={javFavoriteGroupId}
         favoriteRatingEnabled={javFavoriteRatingEnabled}
         favoriteRatingMin={javFavoriteRatingMin}
