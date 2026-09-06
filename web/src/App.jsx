@@ -55,6 +55,8 @@ import JavSettingsModal from '@/components/JavSettingsModal'
 import JavTagModal from '@/components/JavTagModal'
 import JavVideoPickerModal from '@/components/JavVideoPickerModal'
 import SelectionOpsModal from '@/components/SelectionOpsModal'
+import JavSelectionOpsModal from '@/components/JavSelectionOpsModal'
+import JavSelectionTagsModal from '@/components/JavSelectionTagsModal'
 import SelectionJavTagsModal from '@/components/SelectionJavTagsModal'
 import SelectionTagsModal from '@/components/SelectionTagsModal'
 import TagPickerModal from '@/components/TagPickerModal'
@@ -81,6 +83,7 @@ import {
 } from '@/constants/jav'
 import { normalizeVideoSort } from '@/constants/video'
 import useScrollRestoration from '@/hooks/useScrollRestoration'
+import useJavSelection from '@/hooks/useJavSelection'
 import useUrlStateSync from '@/hooks/useUrlStateSync'
 import JavRoute from '@/routes/JavRoute'
 import VideoRoute from '@/routes/VideoRoute'
@@ -3860,9 +3863,18 @@ export default function App() {
       showToast(
         zh(`已将 ${count} 个视频加入 MPV 播放列表`, `Added ${count} videos to the MPV playlist`)
       )
+      return true
     },
     [showCenterToast, showToast]
   )
+
+  const javSelection = useJavSelection({
+    items: javItems,
+    mpvEnabled,
+    playVideos: playVideosWithMPV,
+    showToast,
+    showError: showCenterToast,
+  })
 
   const handleSelectVideoPage = useCallback(() => {
     const count = addVideosToSelection(videos)
@@ -4164,8 +4176,8 @@ export default function App() {
               : null
             : handleOpenTagFilterEditor
         }
-        onOpenSelectionOps={() => setSelectionOpsOpen(true)}
-        onClearSelection={clearSelection}
+        onOpenSelectionOps={isJavMode ? javSelection.openOps : () => setSelectionOpsOpen(true)}
+        onClearSelection={isJavMode ? javSelection.clear : clearSelection}
         onRandomClick={
           !isJavMode ? handleVideoRandomClick : javTab === 'list' ? handleJavRandomClick : null
         }
@@ -4173,7 +4185,7 @@ export default function App() {
         onSubmitSearch={isJavMode ? submitJavSearch : submitSearch}
         searchHref={searchHref}
         searchInput={searchInput}
-        selectedCount={selectedCount}
+        selectedCount={isJavMode ? javSelection.count : selectedCount}
         selectedFavoriteGroupId={activeSelectedFavoriteGroupId}
       />
 
@@ -4289,6 +4301,14 @@ export default function App() {
               javTitleMaxRows,
               javIdolTagMaxRows,
               javTagMaxRows,
+              selectedJavIds: javSelection.selectedIds,
+              onToggleSelect: javSelection.toggle,
+              onSelectAll: javSelection.selectAll,
+              onSelectPage: javSelection.selectPage,
+              onPlayPage: javSelection.playPage,
+              onPlayAll: javSelection.playAll,
+              bulkActionBusy: javSelection.busy,
+              mpvEnabled,
               onPlay: handleJavPlay,
               onOpenFile: handleJavOpenFile,
               alternatePlayerLabel,
@@ -4565,6 +4585,29 @@ export default function App() {
         buildVideoFullPath={buildVideoFullPath}
         isVideoOpenable={isVideoOpenable}
         onSelectVideo={handleSelectVideoLocation}
+      />
+
+      <JavSelectionOpsModal
+        open={javSelection.opsOpen}
+        busy={javSelection.busy}
+        onClose={javSelection.closeOps}
+        items={javSelection.selectedList}
+        mpvEnabled={mpvEnabled}
+        playing={javSelection.playing}
+        onRemoveSelected={javSelection.remove}
+        onPlaySelected={javSelection.playSelected}
+        onOpenTags={javSelection.openTags}
+      />
+
+      <JavSelectionTagsModal
+        open={javSelection.tagsOpen}
+        selectedCount={javSelection.count}
+        tags={displayJavTagOptions.filter(isUserJavTag)}
+        selectedIds={javSelection.tagChoices}
+        onToggleChoice={javSelection.toggleTag}
+        onClose={javSelection.closeTags}
+        onConfirm={javSelection.applyTags}
+        saving={javSelection.saving}
       />
 
       <SelectionOpsModal

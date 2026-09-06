@@ -408,9 +408,11 @@ export default function TopBar({
   const activeSearchInput = isJavMode ? javSearchInput : searchInput
   const activeSearchHref = isJavMode ? javSearchHref : searchHref
   const isJavDownload = isJavMode && javTab === 'download'
-  const selectedVideoCount = Number(selectedCount)
-  const hasVideoSelection =
-    !isJavMode && Number.isFinite(selectedVideoCount) && selectedVideoCount > 0
+  const activeSelectedCount = Number(selectedCount)
+  const hasSelection =
+    (!isJavMode || javTab === 'list') &&
+    Number.isFinite(activeSelectedCount) &&
+    activeSelectedCount > 0
   const placeholder = isJavMode
     ? javTab === 'idol'
       ? zh('搜索女优名称', 'Search idol name')
@@ -525,10 +527,10 @@ export default function TopBar({
           ) : null}
 
           <div className="filter-topbar__actions">
-            {hasVideoSelection ? (
+            {hasSelection ? (
               <div className="inline-flex items-center gap-1 rounded-full border border-sky-100 bg-sky-50 px-1.5 py-1">
                 <span className="whitespace-nowrap px-1.5 text-xs font-medium text-sky-700">
-                  {zh(`已选 ${selectedVideoCount} 项`, `${selectedVideoCount} selected`)}
+                  {zh(`已选 ${activeSelectedCount} 项`, `${activeSelectedCount} selected`)}
                 </span>
                 <Button
                   variant="outlined"

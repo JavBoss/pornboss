@@ -235,6 +235,14 @@ function JavListRoute({
   javHasPrev,
   javIdolTagMaxRows,
   javItems,
+  selectedJavIds,
+  onToggleSelect,
+  onSelectAll,
+  onSelectPage,
+  onPlayPage,
+  onPlayAll,
+  bulkActionBusy,
+  mpvEnabled,
   javLastPage,
   javPage,
   javRandomMode,
@@ -287,6 +295,14 @@ function JavListRoute({
       setJavPage={setJavPage}
       setJavTempSort={setJavTempSort}
       javItems={javItems}
+      selectedJavIds={selectedJavIds}
+      onToggleSelect={onToggleSelect}
+      onSelectAll={onSelectAll}
+      onSelectPage={onSelectPage}
+      onPlayPage={onPlayPage}
+      onPlayAll={onPlayAll}
+      bulkActionBusy={bulkActionBusy}
+      mpvEnabled={mpvEnabled}
       javGridColumns={javGridColumns}
       javTitleMaxRows={javTitleMaxRows}
       javIdolTagMaxRows={javIdolTagMaxRows}

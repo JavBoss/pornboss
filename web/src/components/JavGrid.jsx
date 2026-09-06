@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IconButton, Popper, Rating, Tooltip } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
+import CheckBoxOutlineBlankRoundedIcon from '@mui/icons-material/CheckBoxOutlineBlankRounded'
+import CheckBoxRoundedIcon from '@mui/icons-material/CheckBoxRounded'
 import { MovieEdit } from '@mui/icons-material'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
@@ -98,6 +100,9 @@ function ReleaseIcon() {
 
 export default function JavGrid({
   items,
+  selectedIds,
+  onToggleSelect,
+  selectionDisabled = false,
   columns = 0,
   titleMaxRows = 2,
   idolTagMaxRows = 2,
@@ -294,6 +299,9 @@ export default function JavGrid({
           <JavCard
             key={item.id || item.code}
             item={item}
+            checked={selectedIds?.has(Number(item.id)) || false}
+            onToggleSelect={onToggleSelect}
+            selectionDisabled={selectionDisabled}
             onPlay={onPlay}
             buildJavUrl={buildJavUrl}
             onIdolClick={onIdolClick}
@@ -2153,6 +2161,9 @@ function JavTagList({ tags, maxRows, buildTagFilterHref, onTagClick, onFilterLin
 
 function JavCard({
   item,
+  checked = false,
+  onToggleSelect,
+  selectionDisabled = false,
   onPlay,
   buildJavUrl,
   onIdolClick,
@@ -2759,7 +2770,9 @@ function JavCard({
 
   return (
     <>
-      <div className="flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg">
+      <div
+        className={`jav-card flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg ${checked ? 'border-sky-400 ring-2 ring-sky-200' : ''}`}
+      >
         <div className="card-hover-scope group relative aspect-[800/538] overflow-hidden bg-white">
           {cover ? (
             <JavCoverImage src={cover} alt={item?.code || zh('JAV 封面', 'JAV cover')} />
@@ -2794,92 +2807,129 @@ function JavCard({
               </svg>
             </button>
           </div>
-          <Tooltip
-            title={
-              favoriteRatingError ||
-              (favoriteRatingPreview === 0
-                ? zh('清空喜爱度', 'Clear favorite rating')
-                : hasFavoriteRatingTooltipValue
-                  ? zh(
-                      `喜爱度：${favoriteRatingTooltipValue.toFixed(1)} 分`,
-                      `Favorite rating: ${favoriteRatingTooltipValue.toFixed(1)}`
-                    )
-                  : zh('设置喜爱度评分', 'Set favorite rating'))
-            }
-            placement="top"
-            arrow
+          <div
+            className="absolute left-2 top-2 z-10 flex items-center gap-1"
+            onMouseLeave={() => {
+              setFavoriteRatingEditing(false)
+              setFavoriteRatingPreview(null)
+            }}
+            onBlur={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget)) return
+              setFavoriteRatingEditing(false)
+              setFavoriteRatingPreview(null)
+            }}
           >
-            <span
-              role="group"
-              aria-label={zh('喜爱度评分', 'Favorite rating')}
-              onMouseLeave={() => {
-                setFavoriteRatingEditing(false)
-                setFavoriteRatingPreview(null)
-              }}
-              onBlur={(event) => {
-                if (event.currentTarget.contains(event.relatedTarget)) return
-                setFavoriteRatingEditing(false)
-                setFavoriteRatingPreview(null)
-              }}
-              className={`absolute left-2 top-2 z-10 flex items-center rounded-full bg-black/70 px-1.5 py-0.5 shadow-lg shadow-black/50 transition-opacity ${
-                favoriteRatingSaving
-                  ? 'opacity-60'
-                  : favoriteRating > 0
-                    ? 'opacity-100'
-                    : 'card-hover-focus-visible opacity-0 group-hover:opacity-100'
-              }`}
+            <Tooltip
+              title={
+                favoriteRatingError ||
+                (favoriteRatingPreview === 0
+                  ? zh('清空喜爱度', 'Clear favorite rating')
+                  : hasFavoriteRatingTooltipValue
+                    ? zh(
+                        `喜爱度：${favoriteRatingTooltipValue.toFixed(1)} 分`,
+                        `Favorite rating: ${favoriteRatingTooltipValue.toFixed(1)}`
+                      )
+                    : zh('设置喜爱度评分', 'Set favorite rating'))
+              }
+              placement="top"
+              arrow
             >
               <span
-                className="flex overflow-hidden transition-[width] duration-150"
-                style={{ width: favoriteRatingWidth }}
+                role="group"
+                aria-label={zh('喜爱度评分', 'Favorite rating')}
+                className={`flex items-center rounded-full bg-black/70 px-1.5 py-0.5 shadow-lg shadow-black/50 transition-opacity ${
+                  favoriteRatingSaving
+                    ? 'opacity-60'
+                    : favoriteRating > 0
+                      ? 'opacity-100'
+                      : 'card-hover-focus-visible opacity-0 group-hover:opacity-100'
+                }`}
               >
-                <Rating
-                  name={`jav-favorite-rating-${item?.id || code || 'unknown'}`}
-                  value={favoriteRating}
-                  precision={0.5}
-                  size="small"
-                  icon={<FavoriteRoundedIcon fontSize="inherit" />}
-                  emptyIcon={<FavoriteBorderRoundedIcon fontSize="inherit" />}
-                  disabled={favoriteRatingSaving || !item?.id}
-                  onChange={handleFavoriteRatingChange}
-                  onClick={(event) => event.stopPropagation()}
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onMouseEnter={() => setFavoriteRatingEditing(true)}
-                  onFocus={() => setFavoriteRatingEditing(true)}
-                  onChangeActive={(_, value) =>
-                    setFavoriteRatingPreview(value >= 0.5 ? value : null)
-                  }
-                  sx={{
-                    flexShrink: 0,
-                    color: '#fbbf24',
-                    fontSize: 21,
-                    '& .MuiRating-iconEmpty': {
-                      color: 'rgba(255,255,255,0.85)',
-                    },
-                  }}
-                />
+                <span
+                  className="flex overflow-hidden transition-[width] duration-150"
+                  style={{ width: favoriteRatingWidth }}
+                >
+                  <Rating
+                    name={`jav-favorite-rating-${item?.id || code || 'unknown'}`}
+                    value={favoriteRating}
+                    precision={0.5}
+                    size="small"
+                    icon={<FavoriteRoundedIcon fontSize="inherit" />}
+                    emptyIcon={<FavoriteBorderRoundedIcon fontSize="inherit" />}
+                    disabled={favoriteRatingSaving || !item?.id}
+                    onChange={handleFavoriteRatingChange}
+                    onClick={(event) => event.stopPropagation()}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onMouseEnter={() => setFavoriteRatingEditing(true)}
+                    onFocus={() => setFavoriteRatingEditing(true)}
+                    onChangeActive={(_, value) =>
+                      setFavoriteRatingPreview(value >= 0.5 ? value : null)
+                    }
+                    sx={{
+                      flexShrink: 0,
+                      color: '#fbbf24',
+                      fontSize: 21,
+                      '& .MuiRating-iconEmpty': {
+                        color: 'rgba(255,255,255,0.85)',
+                      },
+                    }}
+                  />
+                </span>
+                {favoriteRatingEditing && favoriteRating > 0 ? (
+                  <button
+                    type="button"
+                    className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/20"
+                    disabled={favoriteRatingSaving || !item?.id}
+                    aria-label={zh('清除喜爱度评分', 'Clear favorite rating')}
+                    onMouseEnter={() => setFavoriteRatingPreview(0)}
+                    onMouseLeave={() => setFavoriteRatingPreview(null)}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => handleFavoriteRatingChange(event, 0)}
+                  >
+                    <RemoveCircleOutlineRoundedIcon sx={{ fontSize: 15 }} />
+                  </button>
+                ) : null}
+                {favoriteRating > 0 && !favoriteRatingEditing ? (
+                  <span className="ml-1 shrink-0 text-xs font-semibold tabular-nums leading-none text-white">
+                    {favoriteRating.toFixed(1)}
+                  </span>
+                ) : null}
               </span>
-              {favoriteRatingEditing && favoriteRating > 0 ? (
+            </Tooltip>
+            {onToggleSelect && Number(item?.id) > 0 ? (
+              <Tooltip
+                title={checked ? zh('取消选择', 'Deselect') : zh('选择', 'Select')}
+                placement="top"
+                arrow
+              >
                 <button
                   type="button"
-                  className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/20"
-                  disabled={favoriteRatingSaving || !item?.id}
-                  aria-label={zh('清除喜爱度评分', 'Clear favorite rating')}
-                  onMouseEnter={() => setFavoriteRatingPreview(0)}
-                  onMouseLeave={() => setFavoriteRatingPreview(null)}
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onClick={(event) => handleFavoriteRatingChange(event, 0)}
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={zh(`选择 ${code || item.title}`, `Select ${code || item.title}`)}
+                  disabled={selectionDisabled}
+                  onKeyDown={(event) => {
+                    if (event.key === ' ' || event.key === 'Enter') event.stopPropagation()
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onToggleSelect(item)
+                  }}
+                  className={`card-hover-focus-visible flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/65 shadow-lg shadow-black/40 transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60 [@media(hover:none)]:opacity-100 ${
+                    checked
+                      ? 'text-sky-300 opacity-100'
+                      : 'text-white opacity-0 group-hover:opacity-100'
+                  }`}
                 >
-                  <RemoveCircleOutlineRoundedIcon sx={{ fontSize: 15 }} />
+                  {checked ? (
+                    <CheckBoxRoundedIcon sx={{ fontSize: 18 }} />
+                  ) : (
+                    <CheckBoxOutlineBlankRoundedIcon sx={{ fontSize: 18 }} />
+                  )}
                 </button>
-              ) : null}
-              {favoriteRating > 0 && !favoriteRatingEditing ? (
-                <span className="ml-1 shrink-0 text-xs font-semibold tabular-nums leading-none text-white">
-                  {favoriteRating.toFixed(1)}
-                </span>
-              ) : null}
-            </span>
-          </Tooltip>
+              </Tooltip>
+            ) : null}
+          </div>
           {externalLinks.length > 0 ? (
             <div className="card-hover-focus-visible absolute bottom-2 left-2 z-10 flex max-w-[calc(100%-1rem)] items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
               {externalLinks.map((site) => (

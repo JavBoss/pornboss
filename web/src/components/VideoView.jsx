@@ -1,7 +1,7 @@
-import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import SwapVertIcon from '@mui/icons-material/SwapVert'
-import { IconButton, Menu, MenuItem, Popover, Tooltip } from '@mui/material'
+import { Popover } from '@mui/material'
 import { useState } from 'react'
+import BulkActionsMenu from '@/components/BulkActionsMenu'
 import Pagination from '@/components/Pagination'
 import VideoGrid from '@/components/VideoGrid'
 import WaterfallLoader from '@/components/WaterfallLoader'
@@ -66,7 +66,6 @@ export default function VideoView({
   hasMore,
 }) {
   const [sortAnchorEl, setSortAnchorEl] = useState(null)
-  const [bulkActionAnchorEl, setBulkActionAnchorEl] = useState(null)
   const pageIds = videos.map((video) => videoSelectionKey(video)).filter(Boolean)
   const pageSelectable = pageIds.length > 0
   const hasVideos = Number(totalItems) > 0
@@ -91,66 +90,18 @@ export default function VideoView({
     setSortAnchorEl(null)
   }
 
-  const runBulkAction = (action) => {
-    setBulkActionAnchorEl(null)
-    action?.()
-  }
-
   const bulkActionMenu = (
-    <>
-      <Tooltip title={zh('视频批量操作', 'Video bulk actions')} arrow>
-        <span className="inline-flex">
-          <IconButton
-            size="small"
-            onClick={(event) => setBulkActionAnchorEl(event.currentTarget)}
-            disabled={!hasVideos || bulkActionBusy}
-            aria-label={zh('视频批量操作', 'Video bulk actions')}
-            aria-haspopup="menu"
-            aria-expanded={Boolean(bulkActionAnchorEl)}
-            className="pagination-bulk-action"
-          >
-            <SettingsRoundedIcon fontSize="inherit" />
-          </IconButton>
-        </span>
-      </Tooltip>
-      <Menu
-        open={Boolean(bulkActionAnchorEl)}
-        anchorEl={bulkActionAnchorEl}
-        onClose={() => setBulkActionAnchorEl(null)}
-        disableScrollLock
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        MenuListProps={{
-          dense: true,
-          'aria-label': zh('视频批量操作', 'Video bulk actions'),
-        }}
-      >
-        <MenuItem
-          disabled={!hasVideos || bulkActionBusy}
-          onClick={() => runBulkAction(onSelectAll)}
-        >
-          {zh('全选', 'Select all')}
-        </MenuItem>
-        <MenuItem
-          disabled={!pageSelectable || bulkActionBusy}
-          onClick={() => runBulkAction(onSelectPage)}
-        >
-          {zh('全选本页', 'Select page')}
-        </MenuItem>
-        <MenuItem
-          disabled={!pageSelectable || !mpvEnabled || bulkActionBusy}
-          onClick={() => runBulkAction(onPlayPage)}
-        >
-          {zh('使用 MPV 播放本页', 'Play page with MPV')}
-        </MenuItem>
-        <MenuItem
-          disabled={!hasVideos || !mpvEnabled || bulkActionBusy}
-          onClick={() => runBulkAction(onPlayAll)}
-        >
-          {zh('使用 MPV 播放全部', 'Play all with MPV')}
-        </MenuItem>
-      </Menu>
-    </>
+    <BulkActionsMenu
+      label={zh('视频批量操作', 'Video bulk actions')}
+      hasItems={hasVideos}
+      pageSelectable={pageSelectable}
+      busy={bulkActionBusy}
+      mpvEnabled={mpvEnabled}
+      onSelectAll={onSelectAll}
+      onSelectPage={onSelectPage}
+      onPlayPage={onPlayPage}
+      onPlayAll={onPlayAll}
+    />
   )
 
   return (
