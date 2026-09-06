@@ -10,7 +10,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded'
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
-import MovieCreationIcon from '@mui/icons-material/MovieCreation'
+import CollectionsBookmarkOutlinedIcon from '@mui/icons-material/CollectionsBookmarkOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
 import RemoveCircleOutlineRoundedIcon from '@mui/icons-material/RemoveCircleOutlineRounded'
@@ -3064,7 +3064,10 @@ function JavCard({
             <div className="flex min-w-0 items-start gap-1 text-xs text-gray-600">
               <Tooltip title={zh('系列', 'Series')} arrow>
                 <span className="inline-flex">
-                  <MovieCreationIcon sx={{ fontSize: 16 }} className="shrink-0 text-emerald-600" />
+                  <CollectionsBookmarkOutlinedIcon
+                    sx={{ fontSize: 16 }}
+                    className="shrink-0 text-emerald-600"
+                  />
                 </span>
               </Tooltip>
               <a
