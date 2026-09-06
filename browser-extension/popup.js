@@ -137,31 +137,11 @@
     const stored = await chrome.storage.local.get([
       MAGNET_DOWNLOAD_SETTINGS_KEY,
       CONNECTION_SETTINGS_KEY,
-      "javboss:server-tokens",
       JAVDB_SETTINGS_KEY,
     ]);
     const magnetSettings = stored[MAGNET_DOWNLOAD_SETTINGS_KEY] || {};
     const javDBSettings = stored[JAVDB_SETTINGS_KEY] || {};
-    let connection = stored[CONNECTION_SETTINGS_KEY];
-    // Keep only the currently selected connection when upgrading older settings.
-    if (!connection) {
-      const serverUrl = String(magnetSettings.serverUrl || "");
-      connection = {
-        serverUrl,
-        apiToken: String(
-          stored["javboss:server-tokens"]?.[normalizedServerURL(serverUrl)] ||
-            "",
-        ),
-      };
-      await chrome.storage.local.set({
-        [CONNECTION_SETTINGS_KEY]: connection,
-        [MAGNET_DOWNLOAD_SETTINGS_KEY]: {
-          enabled: magnetSettings.enabled === true,
-        },
-      });
-    }
-    if (stored["javboss:server-tokens"] !== undefined)
-      await chrome.storage.local.remove("javboss:server-tokens");
+    const connection = stored[CONNECTION_SETTINGS_KEY] || {};
     serverInput.value = String(connection.serverUrl || "");
     tokenInput.value = String(connection.apiToken || "");
     enabledInput.checked = magnetSettings.enabled === true;

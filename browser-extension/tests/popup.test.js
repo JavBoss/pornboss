@@ -12,7 +12,6 @@ function createHarness({
   magnetSettings = null,
   javDBSettings = null,
   connectionSettings = {},
-  serverTokens,
   storageFailure = false,
   permissionGranted = true,
   fetchResponse = { status: 200, body: { authenticated: true } },
@@ -43,7 +42,6 @@ function createHarness({
     });
   }
   const storedValues = [];
-  const removedKeys = [];
   const permissionRequests = [];
   const fetchCalls = [];
   const chrome = {
@@ -63,7 +61,6 @@ function createHarness({
           const stored = {};
           if (connectionSettings)
             stored["javboss:connection-settings"] = connectionSettings;
-          if (serverTokens) stored["javboss:server-tokens"] = serverTokens;
           if (magnetSettings) {
             stored["javboss:magnet-download-settings"] = magnetSettings;
           }
@@ -77,9 +74,6 @@ function createHarness({
         },
         async set(value) {
           storedValues.push(value);
-        },
-        async remove(key) {
-          removedKeys.push(key);
         },
       },
     },
@@ -117,7 +111,6 @@ function createHarness({
     permissionRequests,
     storedValues,
     fetchCalls,
-    removedKeys,
   };
 }
 
@@ -205,33 +198,6 @@ test("changing the address preserves the single current API token", async () => 
       undefined,
     );
   }
-});
-
-test("opening old settings keeps the current connection and removes token history", async () => {
-  const harness = createHarness({
-    connectionSettings: null,
-    magnetSettings: { serverUrl: "https://first.example", enabled: true },
-    serverTokens: {
-      "https://first.example": TEST_TOKEN,
-      "https://second.example": "old-token",
-    },
-  });
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(
-    harness.elements.get("server-url").value,
-    "https://first.example",
-  );
-  assert.equal(harness.elements.get("server-token").value, TEST_TOKEN);
-  assert.deepEqual(JSON.parse(JSON.stringify(harness.storedValues)), [
-    {
-      "javboss:connection-settings": {
-        serverUrl: "https://first.example",
-        apiToken: TEST_TOKEN,
-      },
-      "javboss:magnet-download-settings": { enabled: true },
-    },
-  ]);
-  assert.deepEqual(harness.removedKeys, ["javboss:server-tokens"]);
 });
 
 test("storage isolation failure prevents saving credentials", async () => {
