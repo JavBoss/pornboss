@@ -1,6 +1,6 @@
 (() => {
   const MAGNET_DOWNLOAD_SETTINGS_KEY = "javboss:magnet-download-settings";
-  const SERVER_TOKENS_KEY = "javboss:server-tokens";
+  const CONNECTION_SETTINGS_KEY = "javboss:connection-settings";
   const storageReady = chrome.storage.local
     .setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
     .then(
@@ -8,7 +8,6 @@
       () => false,
     );
   const tokenInput = document.getElementById("server-token");
-  let serverTokens = {};
   let saveQueue = Promise.resolve();
   let connectionVersion = 0;
   const JAVDB_SETTINGS_KEY = "javboss:javdb-settings";
@@ -137,15 +136,34 @@
       throw new Error("无法安全访问扩展凭据，请重新加载扩展");
     const stored = await chrome.storage.local.get([
       MAGNET_DOWNLOAD_SETTINGS_KEY,
-      SERVER_TOKENS_KEY,
+      CONNECTION_SETTINGS_KEY,
+      "javboss:server-tokens",
       JAVDB_SETTINGS_KEY,
     ]);
-    serverTokens = stored[SERVER_TOKENS_KEY] || {};
     const magnetSettings = stored[MAGNET_DOWNLOAD_SETTINGS_KEY] || {};
     const javDBSettings = stored[JAVDB_SETTINGS_KEY] || {};
-    serverInput.value = String(magnetSettings.serverUrl || "");
-    tokenInput.value =
-      serverTokens[normalizedServerURL(serverInput.value)] || "";
+    let connection = stored[CONNECTION_SETTINGS_KEY];
+    // Keep only the currently selected connection when upgrading older settings.
+    if (!connection) {
+      const serverUrl = String(magnetSettings.serverUrl || "");
+      connection = {
+        serverUrl,
+        apiToken: String(
+          stored["javboss:server-tokens"]?.[normalizedServerURL(serverUrl)] ||
+            "",
+        ),
+      };
+      await chrome.storage.local.set({
+        [CONNECTION_SETTINGS_KEY]: connection,
+        [MAGNET_DOWNLOAD_SETTINGS_KEY]: {
+          enabled: magnetSettings.enabled === true,
+        },
+      });
+    }
+    if (stored["javboss:server-tokens"] !== undefined)
+      await chrome.storage.local.remove("javboss:server-tokens");
+    serverInput.value = String(connection.serverUrl || "");
+    tokenInput.value = String(connection.apiToken || "");
     enabledInput.checked = magnetSettings.enabled === true;
     javDBAutoRedirectInput.checked = javDBSettings.autoRedirect !== false;
   }
@@ -172,18 +190,16 @@
   function saveConnection() {
     const serverUrl = normalizedServerURL(serverInput.value);
     const token = tokenInput.value.trim();
-    if (serverUrl) {
-      if (token) serverTokens[serverUrl] = token;
-      else delete serverTokens[serverUrl];
-    }
     return persistSettings({
-      [SERVER_TOKENS_KEY]: { ...serverTokens },
+      [CONNECTION_SETTINGS_KEY]: {
+        serverUrl: serverUrl || serverInput.value.trim(),
+        apiToken: token,
+      },
       [MAGNET_DOWNLOAD_SETTINGS_KEY]: {
         enabled:
           enabledInput.checked &&
           Boolean(serverUrl) &&
           /^jbe_[A-Za-z0-9_-]{43}$/.test(token),
-        serverUrl: serverUrl || serverInput.value.trim(),
       },
     });
   }
@@ -215,8 +231,6 @@
   serverInput.addEventListener("input", () => {
     connectionVersion += 1;
     showConnectionStatus("");
-    tokenInput.value =
-      serverTokens[normalizedServerURL(serverInput.value)] || "";
     return saveConnection();
   });
   tokenInput.addEventListener("input", () => {

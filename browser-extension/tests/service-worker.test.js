@@ -25,7 +25,10 @@ function createHarness(options = {}) {
     [`${SESSION_PREFIX}${SESSION_ID}`, { sessionId: SESSION_ID }],
   ]);
   const localData = new Map();
-  localData.set("javboss:server-tokens", options.serverTokens || {});
+  localData.set(
+    "javboss:connection-settings",
+    options.connectionSettings || {},
+  );
   if (options.magnetSettings) {
     localData.set("javboss:magnet-download-settings", options.magnetSettings);
   }
@@ -146,7 +149,10 @@ function createHarness(options = {}) {
 
 test("a clicked magnet link is submitted to the configured JavBoss server", async () => {
   const harness = createHarness({
-    serverTokens: { "https://192.168.1.20:17654/javboss": TEST_TOKEN },
+    connectionSettings: {
+      serverUrl: "https://192.168.1.20:17654/javboss",
+      apiToken: TEST_TOKEN,
+    },
     magnetSettings: {
       enabled: true,
       serverUrl: "https://192.168.1.20:17654/javboss",
@@ -182,9 +188,10 @@ test("a clicked magnet link is submitted to the configured JavBoss server", asyn
 
 test("magnet submission is rejected until it is manually enabled", async () => {
   const harness = createHarness({
-    magnetSettings: {
-      enabled: false,
+    magnetSettings: { enabled: false },
+    connectionSettings: {
       serverUrl: "http://127.0.0.1:17654",
+      apiToken: TEST_TOKEN,
     },
   });
   const response = await harness.send(
@@ -480,11 +487,11 @@ test("a tab with the temporary marker can claim the scrape session", async () =>
   });
 });
 
-test("missing or mismatched server tokens never send a download request", async () => {
-  for (const serverTokens of [{}, { "https://other.example": TEST_TOKEN }]) {
+test("missing or invalid current tokens never send a download request", async () => {
+  for (const apiToken of ["", "invalid"]) {
     const harness = createHarness({
       magnetSettings: { enabled: true, serverUrl: "https://boss.example" },
-      serverTokens,
+      connectionSettings: { serverUrl: "https://boss.example", apiToken },
     });
     const response = await harness.send(
       {
@@ -503,7 +510,10 @@ test("missing or mismatched server tokens never send a download request", async 
 test("content settings and updates never expose the server token", async () => {
   const harness = createHarness({
     magnetSettings: { enabled: true, serverUrl: "https://boss.example" },
-    serverTokens: { "https://boss.example": TEST_TOKEN },
+    connectionSettings: {
+      serverUrl: "https://boss.example",
+      apiToken: TEST_TOKEN,
+    },
   });
   const response = await harness.send(
     { type: "JAVBOSS_MAGNET_SETTINGS" },
@@ -526,7 +536,10 @@ test("content settings and updates never expose the server token", async () => {
 test("an expired token produces a reauthorization message", async () => {
   const harness = createHarness({
     magnetSettings: { enabled: true, serverUrl: "https://boss.example" },
-    serverTokens: { "https://boss.example": TEST_TOKEN },
+    connectionSettings: {
+      serverUrl: "https://boss.example",
+      apiToken: TEST_TOKEN,
+    },
     responseStatus: 401,
   });
   const response = await harness.send(
@@ -549,7 +562,10 @@ test("remote HTTP and failure to isolate storage fail closed", async () => {
     const harness = createHarness({
       ...options,
       magnetSettings: { enabled: true, serverUrl: options.serverUrl },
-      serverTokens: { [options.serverUrl]: TEST_TOKEN },
+      connectionSettings: {
+        serverUrl: options.serverUrl,
+        apiToken: TEST_TOKEN,
+      },
     });
     const response = await harness.send(
       {
@@ -572,7 +588,7 @@ test("loopback servers can use HTTP and messages cannot override the destination
   ]) {
     const harness = createHarness({
       magnetSettings: { enabled: true, serverUrl },
-      serverTokens: { [serverUrl]: TEST_TOKEN },
+      connectionSettings: { serverUrl, apiToken: TEST_TOKEN },
     });
     const response = await harness.send(
       {
@@ -591,4 +607,43 @@ test("loopback servers can use HTTP and messages cannot override the destination
       `Bearer ${TEST_TOKEN}`,
     );
   }
+});
+
+test("downloads use the latest connection pair and never expose it in change notifications", async () => {
+  const harness = createHarness({
+    magnetSettings: { enabled: true, serverUrl: "https://obsolete.example" },
+    connectionSettings: {
+      serverUrl: "https://first.example",
+      apiToken: TEST_TOKEN,
+    },
+  });
+  const nextToken = "jbe_" + "b".repeat(43);
+  harness.localData.set("javboss:connection-settings", {
+    serverUrl: "https://current.example",
+    apiToken: nextToken,
+  });
+  harness.listeners.storage({ "javboss:connection-settings": {} }, "local");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(plain(harness.sentMessages), [
+    {
+      tabId: 2,
+      message: { type: "JAVBOSS_MAGNET_SETTINGS_CHANGED", enabled: true },
+    },
+  ]);
+  const response = await harness.send(
+    {
+      type: "JAVBOSS_DOWNLOAD_MAGNET",
+      magnetUrl: "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567",
+    },
+    { id: 2, url: "https://example.com" },
+  );
+  assert.equal(response.ok, true);
+  assert.equal(
+    harness.fetchCalls[0].url,
+    "https://current.example/extension/downloads",
+  );
+  assert.equal(
+    harness.fetchCalls[0].options.headers.Authorization,
+    `Bearer ${nextToken}`,
+  );
 });

@@ -11,7 +11,8 @@ const TEST_TOKEN = "jbe_" + "a".repeat(43);
 function createHarness({
   magnetSettings = null,
   javDBSettings = null,
-  serverTokens = {},
+  connectionSettings = {},
+  serverTokens,
   storageFailure = false,
   permissionGranted = true,
   fetchResponse = { status: 200, body: { authenticated: true } },
@@ -42,6 +43,7 @@ function createHarness({
     });
   }
   const storedValues = [];
+  const removedKeys = [];
   const permissionRequests = [];
   const fetchCalls = [];
   const chrome = {
@@ -58,7 +60,10 @@ function createHarness({
           if (storageFailure) throw new Error("storage denied");
         },
         async get(keys) {
-          const stored = { "javboss:server-tokens": serverTokens };
+          const stored = {};
+          if (connectionSettings)
+            stored["javboss:connection-settings"] = connectionSettings;
+          if (serverTokens) stored["javboss:server-tokens"] = serverTokens;
           if (magnetSettings) {
             stored["javboss:magnet-download-settings"] = magnetSettings;
           }
@@ -72,6 +77,9 @@ function createHarness({
         },
         async set(value) {
           storedValues.push(value);
+        },
+        async remove(key) {
+          removedKeys.push(key);
         },
       },
     },
@@ -104,7 +112,13 @@ function createHarness({
     AbortSignal,
     TypeError,
   });
-  return { elements, permissionRequests, storedValues, fetchCalls };
+  return {
+    elements,
+    permissionRequests,
+    storedValues,
+    fetchCalls,
+    removedKeys,
+  };
 }
 
 test("the popup starts with magnet downloads disabled and JavDB redirects enabled", async () => {
@@ -142,13 +156,10 @@ test("connection inputs save immediately and enabling requests host access", asy
     { origins: ["https://192.168.1.20/*"] },
   ]);
   const saved = harness.storedValues.at(-1);
-  assert.equal(
-    saved["javboss:server-tokens"]["https://192.168.1.20:17654/javboss"],
-    TEST_TOKEN,
-  );
+  assert.equal(saved["javboss:connection-settings"].apiToken, TEST_TOKEN);
   assert.deepEqual(
     JSON.parse(JSON.stringify(saved["javboss:magnet-download-settings"])),
-    { enabled: true, serverUrl: "https://192.168.1.20:17654/javboss" },
+    { enabled: true },
   );
   assert.equal(harness.storedValues.length, 3);
 });
@@ -166,35 +177,61 @@ test("JavDB toggle saves independently of incomplete connection settings", async
   ]);
 });
 
-test("changing servers never carries a token to another server", async () => {
+test("changing the address preserves the single current API token", async () => {
   const harness = createHarness({
-    magnetSettings: { serverUrl: "https://first.example", enabled: true },
-    serverTokens: {
-      "https://first.example": TEST_TOKEN,
-      "https://second.example": "jbe_" + "b".repeat(43),
+    magnetSettings: { enabled: true },
+    connectionSettings: {
+      serverUrl: "https://first.example",
+      apiToken: TEST_TOKEN,
     },
   });
   await new Promise((resolve) => setImmediate(resolve));
+  for (const serverUrl of [
+    "https://second.example",
+    "",
+    "https://third.example",
+  ]) {
+    harness.elements.get("server-url").value = serverUrl;
+    await harness.elements.get("server-url").listeners.input();
+    assert.equal(harness.elements.get("server-token").value, TEST_TOKEN);
+    const saved = harness.storedValues.at(-1);
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(saved["javboss:connection-settings"])),
+      { serverUrl, apiToken: TEST_TOKEN },
+    );
+    assert.equal(saved["javboss:server-tokens"], undefined);
+    assert.equal(
+      saved["javboss:magnet-download-settings"].serverUrl,
+      undefined,
+    );
+  }
+});
+
+test("opening old settings keeps the current connection and removes token history", async () => {
+  const harness = createHarness({
+    connectionSettings: null,
+    magnetSettings: { serverUrl: "https://first.example", enabled: true },
+    serverTokens: {
+      "https://first.example": TEST_TOKEN,
+      "https://second.example": "old-token",
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    harness.elements.get("server-url").value,
+    "https://first.example",
+  );
   assert.equal(harness.elements.get("server-token").value, TEST_TOKEN);
-  harness.elements.get("server-url").value = "https://unknown.example";
-  await harness.elements.get("server-url").listeners.input();
-  assert.equal(harness.elements.get("server-token").value, "");
-  assert.equal(
-    harness.storedValues.at(-1)["javboss:magnet-download-settings"].enabled,
-    false,
-  );
-  harness.elements.get("server-url").value = "https://second.example";
-  await harness.elements.get("server-url").listeners.input();
-  assert.equal(
-    harness.elements.get("server-token").value,
-    "jbe_" + "b".repeat(43),
-  );
-  assert.equal(
-    harness.storedValues.at(-1)["javboss:server-tokens"][
-      "https://first.example"
-    ],
-    TEST_TOKEN,
-  );
+  assert.deepEqual(JSON.parse(JSON.stringify(harness.storedValues)), [
+    {
+      "javboss:connection-settings": {
+        serverUrl: "https://first.example",
+        apiToken: TEST_TOKEN,
+      },
+      "javboss:magnet-download-settings": { enabled: true },
+    },
+  ]);
+  assert.deepEqual(harness.removedKeys, ["javboss:server-tokens"]);
 });
 
 test("storage isolation failure prevents saving credentials", async () => {
@@ -334,7 +371,10 @@ test("connection test prevents duplicate requests and clears stale results on ed
 test("disabling downloads saves even when the connection is incomplete", async () => {
   const harness = createHarness({
     magnetSettings: { enabled: true, serverUrl: "https://boss.example" },
-    serverTokens: { "https://boss.example": TEST_TOKEN },
+    connectionSettings: {
+      serverUrl: "https://boss.example",
+      apiToken: TEST_TOKEN,
+    },
   });
   await new Promise((resolve) => setImmediate(resolve));
   harness.elements.get("server-url").value = "incomplete";
@@ -368,7 +408,10 @@ test("permission denial turns the downloads toggle back off", async () => {
 test("rapid token edits save in order and never reuse an older valid token", async () => {
   const harness = createHarness({
     magnetSettings: { enabled: true, serverUrl: "https://boss.example" },
-    serverTokens: { "https://boss.example": TEST_TOKEN },
+    connectionSettings: {
+      serverUrl: "https://boss.example",
+      apiToken: TEST_TOKEN,
+    },
   });
   await new Promise((resolve) => setImmediate(resolve));
   harness.elements.get("server-token").value = "jbe_partial";
@@ -382,7 +425,7 @@ test("rapid token edits save in order and never reuse an older valid token", asy
     false,
   );
   assert.equal(
-    harness.storedValues[0]["javboss:server-tokens"]["https://boss.example"],
+    harness.storedValues[0]["javboss:connection-settings"].apiToken,
     "jbe_partial",
   );
   assert.equal(
@@ -390,16 +433,14 @@ test("rapid token edits save in order and never reuse an older valid token", asy
     true,
   );
   assert.equal(
-    harness.storedValues[1]["javboss:server-tokens"]["https://boss.example"],
+    harness.storedValues[1]["javboss:connection-settings"].apiToken,
     nextToken,
   );
   harness.elements.get("server-token").value = "";
   await harness.elements.get("server-token").listeners.input();
   assert.equal(
-    harness.storedValues.at(-1)["javboss:server-tokens"][
-      "https://boss.example"
-    ],
-    undefined,
+    harness.storedValues.at(-1)["javboss:connection-settings"].apiToken,
+    "",
   );
   assert.equal(
     harness.storedValues.at(-1)["javboss:magnet-download-settings"].enabled,

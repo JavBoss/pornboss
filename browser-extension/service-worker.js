@@ -10,7 +10,7 @@ const JAVDB_ASSIST_KEY_PREFIX = "javboss:javdb-assist:";
 const LEGACY_RELAY_KEY_PREFIX = "javboss:javbus-relay:";
 const LEGACY_RELAY_SESSION_KEY_PREFIX = "javboss:javbus-session:";
 const MAGNET_DOWNLOAD_SETTINGS_KEY = "javboss:magnet-download-settings";
-const SERVER_TOKENS_KEY = "javboss:server-tokens";
+const CONNECTION_SETTINGS_KEY = "javboss:connection-settings";
 const storageReady = chrome.storage.local
   .setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
   .then(
@@ -104,12 +104,17 @@ function normalizedServerURL(value) {
 
 async function magnetDownloadSettings() {
   await requirePrivateStorage();
-  const stored = await chrome.storage.local.get(MAGNET_DOWNLOAD_SETTINGS_KEY);
+  const stored = await chrome.storage.local.get([
+    MAGNET_DOWNLOAD_SETTINGS_KEY,
+    CONNECTION_SETTINGS_KEY,
+  ]);
   const settings = stored[MAGNET_DOWNLOAD_SETTINGS_KEY];
-  const serverUrl = normalizedServerURL(settings?.serverUrl);
+  const connection = stored[CONNECTION_SETTINGS_KEY];
+  const serverUrl = normalizedServerURL(connection?.serverUrl);
   return {
     enabled: settings?.enabled === true && Boolean(serverUrl),
     serverUrl,
+    apiToken: String(connection?.apiToken || "").trim(),
   };
 }
 
@@ -129,10 +134,7 @@ async function submitMagnetDownload(message) {
       error: "请先在扩展中填写 JavBoss Server 地址并启用磁力下载",
     };
   }
-  const stored = await chrome.storage.local.get(SERVER_TOKENS_KEY);
-  const token = String(
-    stored[SERVER_TOKENS_KEY]?.[settings.serverUrl] || "",
-  ).trim();
+  const token = settings.apiToken;
   if (!/^jbe_[A-Za-z0-9_-]{43}$/.test(token)) {
     return {
       ok: false,
@@ -482,7 +484,12 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Content scripts receive only the enabled flag, never server credentials.
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local" || !changes[MAGNET_DOWNLOAD_SETTINGS_KEY]) return;
+  if (
+    areaName !== "local" ||
+    (!changes[MAGNET_DOWNLOAD_SETTINGS_KEY] &&
+      !changes[CONNECTION_SETTINGS_KEY])
+  )
+    return;
   magnetDownloadSettings()
     .then(async ({ enabled }) => {
       const tabs = await chrome.tabs.query({});

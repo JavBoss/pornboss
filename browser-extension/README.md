@@ -21,7 +21,7 @@ JavBoss 助手是一个 Chrome 扩展，支持从 JavBus、JavLibrary、JavDB �
 3. 点击浏览器工具栏中的 **JavBoss 助手**，在独立的 **连接设置** 中填写 Server 地址和 API 令牌，可先点击 **测试连接** 验证当前输入的地址和令牌，再到 **磁力下载** 中打开 **启用磁力下载**。地址、令牌和开关修改后自动保存并生效。
 4. 在 HTTP/HTTPS 网站点击磁力链接，确认后提交到 JavBoss 下载队列。
 
-远程 Server 必须使用 HTTPS（例如 `https://javboss.example.com`），本机 `localhost`、`127.0.0.1`、`[::1]` 可使用 HTTP。支持地址包含反向代理子路径。Token 按规范化后的完整 Server 地址分别保存，切换地址不会把上一台服务器的 Token 带过去。
+远程 Server 必须使用 HTTPS（例如 `https://javboss.example.com`），本机 `localhost`、`127.0.0.1`、`[::1]` 可使用 HTTP。支持地址包含反向代理子路径。连接设置只保存当前的 JavBoss 地址和 API 令牌；修改地址不会切换或清空令牌，不再保存历史服务器配置。旧配置首次打开设置时仅保留当前连接，并清理历史令牌。
 
 Token 是浏览器扩展的接口凭据，不区分 scope；后台按请求方法和路由配置哪些接口接受 Token，目前开放 `POST /extension/downloads` 和 `GET /extension/status`（连接及鉴权检查）。后台支持查看有效期、最近使用时间、重新生成及删除。重新生成后旧 Token 立即失效；删除某个 API 令牌不会影响其他浏览器。到期或删除后，扩展会提示重新配置 Token。
 
