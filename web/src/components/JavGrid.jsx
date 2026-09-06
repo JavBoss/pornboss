@@ -3025,7 +3025,7 @@ function JavCard({
                   <ReleaseIcon />
                 </span>
               </Tooltip>
-              <span className="text-gray-800">{releaseText}</span>
+              <span>{releaseText}</span>
             </span>
             <span className="inline-flex shrink-0 items-center gap-1">
               <Tooltip title={zh('时长', 'Duration')} arrow>
