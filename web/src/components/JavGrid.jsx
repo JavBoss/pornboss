@@ -3061,11 +3061,11 @@ function JavCard({
             ) : null}
           </div>
           {!hideSeries && seriesText ? (
-            <div className="flex min-w-0 items-start gap-1 text-xs text-gray-600">
+            <div className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
               <Tooltip title={zh('系列', 'Series')} arrow>
                 <span className="inline-flex">
                   <CollectionsBookmarkOutlinedIcon
-                    sx={{ fontSize: 16 }}
+                    sx={{ fontSize: 14 }}
                     className="shrink-0 text-emerald-600"
                   />
                 </span>
