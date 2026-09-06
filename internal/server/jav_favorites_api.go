@@ -27,6 +27,30 @@ func listJavFavoriteGroupsFor(entityType string) gin.HandlerFunc {
 	}
 }
 
+// addJavsToFavoriteGroups handles POST /jav/items/favorite-groups/add.
+// The JSON body contains jav_ids and group_ids; existing memberships are retained.
+func addJavsToFavoriteGroups(c *gin.Context) {
+	var req struct {
+		JavIDs   []int64 `json:"jav_ids" binding:"required,min=1,dive,gt=0"`
+		GroupIDs []int64 `json:"group_ids" binding:"required,min=1,dive,gt=0"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondLocalizedError(c, http.StatusBadRequest, "批量加入收藏夹请求无效", "Invalid bulk favorite request")
+		return
+	}
+	counts, err := dbpkg.AddJavsToFavoriteGroups(c.Request.Context(), req.JavIDs, req.GroupIDs)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			respondLocalizedError(c, http.StatusNotFound, "作品或作品收藏夹不存在，请刷新后重试", "JAV item or favorite group was not found; refresh and retry")
+			return
+		}
+		logging.Error("add jav items to favorite groups: %v", err)
+		respondLocalizedError(c, http.StatusInternalServerError, "批量加入收藏夹失败", "Failed to add JAV items to favorite groups")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": counts})
+}
+
 func createJavFavoriteGroupFor(entityType string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {

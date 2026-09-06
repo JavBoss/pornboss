@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { addJavTagToJavs, fetchJavs } from '@/api'
+import { addJavTagToJavs, addJavsToFavoriteGroups, fetchJavs } from '@/api'
 import { resolveJavSort } from '@/constants/jav'
 import { useStore } from '@/store'
 import { getErrorMessage } from '@/utils/errors'
@@ -11,6 +11,9 @@ export default function useJavSelection({ items, mpvEnabled, playVideos, showToa
   const [opsOpen, setOpsOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [tagChoices, setTagChoices] = useState([])
+  const [favoritesOpen, setFavoritesOpen] = useState(false)
+  const [favoriteChoices, setFavoriteChoices] = useState([])
+  const [favoriteError, setFavoriteError] = useState('')
   const [action, setAction] = useState('')
   const actionRef = useRef(false)
   useEffect(() => {
@@ -18,6 +21,9 @@ export default function useJavSelection({ items, mpvEnabled, playVideos, showToa
     setOpsOpen(false)
     setTagsOpen(false)
     setTagChoices([])
+    setFavoritesOpen(false)
+    setFavoriteChoices([])
+    setFavoriteError('')
   }, [selection.size])
   const selectedIds = useMemo(() => new Set(selection.keys()), [selection])
   const selectedItems = useMemo(() => {
@@ -149,6 +155,40 @@ export default function useJavSelection({ items, mpvEnabled, playVideos, showToa
       }
     })
 
+  const applyFavorites = () =>
+    runAction('favorites', async () => {
+      const ids = Array.from(selectedIds)
+      const groupIds = favoriteChoices.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+      if (ids.length === 0 || groupIds.length === 0) return
+      setFavoriteError('')
+      try {
+        const result = await addJavsToFavoriteGroups(ids, groupIds)
+        const counts = new Map(
+          (result.items || []).map((item) => [Number(item.id), item.favorite_count])
+        )
+        useStore.setState((state) => ({
+          javItems: state.javItems.map((item) =>
+            counts.has(Number(item.id))
+              ? { ...item, favorite_count: counts.get(Number(item.id)) }
+              : item
+          ),
+        }))
+        setFavoritesOpen(false)
+        setOpsOpen(false)
+        setFavoriteChoices([])
+        setSelection(new Map())
+        showToast(
+          zh(
+            `已将 ${ids.length} 部 JAV 加入 ${groupIds.length} 个收藏夹`,
+            `Added ${ids.length} JAV items to ${groupIds.length} favorite groups`
+          )
+        )
+        await useStore.getState().loadJavFavoriteGroups('jav', { force: true })
+      } catch (error) {
+        setFavoriteError(getErrorMessage(error))
+      }
+    })
+
   return {
     selectedIds,
     selectedList,
@@ -158,6 +198,10 @@ export default function useJavSelection({ items, mpvEnabled, playVideos, showToa
     saving: action === 'tags',
     opsOpen: opsOpen && selectedIds.size > 0,
     tagsOpen: tagsOpen && selectedIds.size > 0,
+    favoritesOpen: favoritesOpen && selectedIds.size > 0,
+    favoritesSaving: action === 'favorites',
+    favoriteChoices,
+    favoriteError,
     tagChoices,
     clear,
     remove,
@@ -185,6 +229,27 @@ export default function useJavSelection({ items, mpvEnabled, playVideos, showToa
         return Array.from(next)
       }),
     applyTags,
+    openFavorites: () => {
+      if (actionRef.current) return
+      setFavoriteChoices([])
+      setFavoriteError('')
+      setFavoritesOpen(true)
+      useStore.getState().loadJavFavoriteGroups('jav', { force: true })
+    },
+    closeFavorites: () => {
+      if (actionRef.current) return
+      setFavoritesOpen(false)
+      setFavoriteChoices([])
+      setFavoriteError('')
+    },
+    toggleFavorite: (id, checked) =>
+      setFavoriteChoices((current) => {
+        const next = new Set(current)
+        if (checked) next.add(String(id))
+        else next.delete(String(id))
+        return Array.from(next)
+      }),
+    applyFavorites,
     selectPage: () => runAction('select', () => selectItems(items)),
     selectAll: () => runAction('select', async () => selectItems(await fetchAll())),
     playPage: () => play(() => items),

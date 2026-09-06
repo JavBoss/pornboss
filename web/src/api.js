@@ -1151,6 +1151,16 @@ export async function replaceJavFavoriteGroups(entityType = 'idol', id, groupIds
   }
 }
 
+export async function addJavsToFavoriteGroups(javIds, groupIds) {
+  const res = await apiFetch('/jav/items/favorite-groups/add', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ jav_ids: javIds, group_ids: groupIds }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
 export async function fetchJavIdolCoverOptions(id) {
   const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}/cover-options`)
   if (!res.ok) {

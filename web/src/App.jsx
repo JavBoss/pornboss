@@ -57,6 +57,7 @@ import JavVideoPickerModal from '@/components/JavVideoPickerModal'
 import SelectionOpsModal from '@/components/SelectionOpsModal'
 import JavSelectionOpsModal from '@/components/JavSelectionOpsModal'
 import JavSelectionTagsModal from '@/components/JavSelectionTagsModal'
+import JavSelectionFavoritesModal from '@/components/JavSelectionFavoritesModal'
 import SelectionJavTagsModal from '@/components/SelectionJavTagsModal'
 import SelectionTagsModal from '@/components/SelectionTagsModal'
 import TagPickerModal from '@/components/TagPickerModal'
@@ -4597,6 +4598,22 @@ export default function App() {
         onRemoveSelected={javSelection.remove}
         onPlaySelected={javSelection.playSelected}
         onOpenTags={javSelection.openTags}
+        onOpenFavorites={javSelection.openFavorites}
+      />
+
+      <JavSelectionFavoritesModal
+        open={javSelection.favoritesOpen}
+        selectedCount={javSelection.count}
+        groups={favoriteGroupsByType?.jav || []}
+        selectedIds={javSelection.favoriteChoices}
+        onToggleChoice={javSelection.toggleFavorite}
+        onClose={javSelection.closeFavorites}
+        onConfirm={javSelection.applyFavorites}
+        onReload={() => loadJavFavoriteGroups('jav', { force: true })}
+        loading={Boolean(favoriteGroupsLoadingByType?.jav)}
+        saving={javSelection.favoritesSaving}
+        loadError={favoriteGroupsErrorByType?.jav}
+        error={javSelection.favoriteError}
       />
 
       <JavSelectionTagsModal

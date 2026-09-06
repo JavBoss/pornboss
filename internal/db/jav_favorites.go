@@ -30,6 +30,99 @@ type JavFavoriteGroupSummary struct {
 	SortOrder  int    `json:"sort_order"`
 }
 
+type JavFavoriteCount struct {
+	ID            int64 `json:"id" gorm:"column:entity_id"`
+	FavoriteCount int64 `json:"favorite_count"`
+}
+
+// AddJavsToFavoriteGroups appends JAV items to every selected group atomically.
+// Existing memberships and their order are preserved; new items follow javIDs order.
+func AddJavsToFavoriteGroups(ctx context.Context, javIDs, groupIDs []int64) ([]JavFavoriteCount, error) {
+	for _, ids := range [][]int64{javIDs, groupIDs} {
+		if len(ids) == 0 {
+			return nil, errors.New("jav_ids and group_ids are required")
+		}
+		for _, id := range ids {
+			if id <= 0 {
+				return nil, errors.New("ids must be positive")
+			}
+		}
+	}
+	javIDs = uniqueInt64s(javIDs)
+	groupIDs = uniqueInt64s(groupIDs)
+	const batchSize = 400
+	counts := make([]JavFavoriteCount, 0, len(javIDs))
+	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for start := 0; start < len(javIDs); start += batchSize {
+			batch := javIDs[start:min(start+batchSize, len(javIDs))]
+			var count int64
+			if err := tx.Model(&models.Jav{}).Where("id IN ?", batch).Count(&count).Error; err != nil {
+				return fmt.Errorf("find jav items: %w", err)
+			}
+			if count != int64(len(batch)) {
+				return gorm.ErrRecordNotFound
+			}
+		}
+		for _, groupID := range groupIDs {
+			var group models.JavFavoriteGroup
+			if err := tx.Where("id = ? AND entity_type = ?", groupID, JavFavoriteEntityJav).First(&group).Error; err != nil {
+				return fmt.Errorf("find jav favorite group: %w", err)
+			}
+			nextOrder, err := nextJavFavoriteMapSortOrderTx(tx, groupID)
+			if err != nil {
+				return err
+			}
+			for start := 0; start < len(javIDs); start += batchSize {
+				batch := javIDs[start:min(start+batchSize, len(javIDs))]
+				var existingIDs []int64
+				if err := tx.Model(&models.JavFavoriteMap{}).
+					Where("jav_favorite_group_id = ? AND entity_type = ? AND entity_id IN ?", groupID, JavFavoriteEntityJav, batch).
+					Pluck("entity_id", &existingIDs).Error; err != nil {
+					return fmt.Errorf("find existing jav favorites: %w", err)
+				}
+				existing := make(map[int64]bool, len(existingIDs))
+				for _, id := range existingIDs {
+					existing[id] = true
+				}
+				rows := make([]models.JavFavoriteMap, 0, len(batch))
+				for _, id := range batch {
+					if existing[id] {
+						continue
+					}
+					rows = append(rows, models.JavFavoriteMap{
+						JavFavoriteGroupID: groupID,
+						EntityType:         JavFavoriteEntityJav,
+						EntityID:           id,
+						SortOrder:          nextOrder,
+					})
+					nextOrder++
+				}
+				if len(rows) > 0 {
+					if err := tx.Clauses(clause.OnConflict{DoNothing: true}).CreateInBatches(&rows, 100).Error; err != nil {
+						return fmt.Errorf("add jav favorites: %w", err)
+					}
+				}
+			}
+		}
+		for start := 0; start < len(javIDs); start += batchSize {
+			batch := javIDs[start:min(start+batchSize, len(javIDs))]
+			var batchCounts []JavFavoriteCount
+			if err := tx.Model(&models.JavFavoriteMap{}).
+				Select("entity_id, COUNT(*) AS favorite_count").
+				Where("entity_type = ? AND entity_id IN ?", JavFavoriteEntityJav, batch).
+				Group("entity_id").Scan(&batchCounts).Error; err != nil {
+				return fmt.Errorf("load jav favorite counts: %w", err)
+			}
+			counts = append(counts, batchCounts...)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return counts, nil
+}
+
 type JavFavoriteItemSummary struct {
 	ID           int64  `json:"id"`
 	EntityType   string `json:"entity_type"`

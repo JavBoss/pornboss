@@ -1,5 +1,6 @@
 import { Button, IconButton, Tooltip } from '@mui/material'
 import PlaylistPlayRoundedIcon from '@mui/icons-material/PlaylistPlayRounded'
+import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded'
 import RemoveCircleOutlineRoundedIcon from '@mui/icons-material/RemoveCircleOutlineRounded'
 import AppModal from '@/components/AppModal'
 import { zh } from '@/utils/i18n'
@@ -10,6 +11,7 @@ export default function JavSelectionOpsModal({
   items,
   onRemoveSelected,
   onOpenTags,
+  onOpenFavorites,
   onPlaySelected,
   mpvEnabled = true,
   playing = false,
@@ -74,6 +76,15 @@ export default function JavSelectionOpsModal({
           disabled={list.length === 0 || disabled}
         >
           {zh('添加标签', 'Add Tags')}
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={onOpenFavorites}
+          disabled={list.length === 0 || disabled}
+          startIcon={<StarBorderRoundedIcon fontSize="inherit" />}
+        >
+          {zh('加入收藏夹', 'Add to favorites')}
         </Button>
         <Button
           variant="contained"
