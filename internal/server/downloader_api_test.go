@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"javboss/internal/common"
 	dbpkg "javboss/internal/db"
@@ -40,10 +42,17 @@ func TestCreateDownloadJobAcceptsManualMagnetOnly(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(extensionAPIAccess())
 	router.GET("/downloads", listDownloadJobs)
 	router.POST("/downloads", createDownloadJob)
-	router.OPTIONS("/extension/downloads", extensionDownloadsPreflight)
-	router.POST("/extension/downloads", createExtensionDownloadJob)
+	auth, err := NewAuthService(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// CORS is installed before routes, just as in NewRouter.
+	protected := router.Group("/")
+	protected.Use(auth.requireAuth())
+	registerExtensionDownloadRoutes(protected)
 	body := `{"magnet_url":"magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567&dn=Manual+Task"}`
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/downloads", strings.NewReader(body))
@@ -102,6 +111,7 @@ func TestCreateDownloadJobAcceptsManualMagnetOnly(t *testing.T) {
 	preflightResponse := httptest.NewRecorder()
 	preflightRequest := httptest.NewRequest(http.MethodOptions, "/extension/downloads", nil)
 	preflightRequest.Header.Set("Origin", javBossExtensionOrigin)
+	preflightRequest.Header.Set("Access-Control-Request-Method", "POST")
 	router.ServeHTTP(preflightResponse, preflightRequest)
 	if preflightResponse.Code != http.StatusNoContent ||
 		preflightResponse.Header().Get("Access-Control-Allow-Origin") != javBossExtensionOrigin {
@@ -117,10 +127,21 @@ func TestCreateDownloadJobAcceptsManualMagnetOnly(t *testing.T) {
 		t.Fatalf("invalid extension status = %d body=%s", invalidExtensionResponse.Code, invalidExtensionResponse.Body.String())
 	}
 
+	credential, err := newExtensionCredential()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dbpkg.CreateExtensionToken(t.Context(), &models.ExtensionToken{
+		Name: "test browser", Token: credential,
+		CreatedAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
 	extensionResponse := httptest.NewRecorder()
 	extensionRequest := httptest.NewRequest(http.MethodPost, "/extension/downloads", strings.NewReader(body))
 	extensionRequest.Header.Set("Content-Type", "application/json")
 	extensionRequest.Header.Set("Origin", javBossExtensionOrigin)
+	extensionRequest.Header.Set("Authorization", "Bearer "+credential)
 	router.ServeHTTP(extensionResponse, extensionRequest)
 	if extensionResponse.Code != http.StatusCreated ||
 		extensionResponse.Header().Get("Access-Control-Allow-Origin") != javBossExtensionOrigin {

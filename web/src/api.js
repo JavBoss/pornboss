@@ -1355,3 +1355,34 @@ export async function resolveJavIdols(ids = []) {
   javIdolResolveInFlight.set(key, request)
   return request
 }
+
+export async function fetchExtensionTokens() {
+  const res = await apiFetch('/auth/extension-tokens', { cache: 'no-store' })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function createExtensionToken(name, expiresInDays) {
+  const res = await apiFetch('/auth/extension-tokens', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ name, expires_in_days: expiresInDays }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function rotateExtensionToken(id, expiresInDays) {
+  const res = await apiFetch(`/auth/extension-tokens/${id}/rotate`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ expires_in_days: expiresInDays }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function deleteExtensionToken(id) {
+  const res = await apiFetch(`/auth/extension-tokens/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw await apiError(res)
+}

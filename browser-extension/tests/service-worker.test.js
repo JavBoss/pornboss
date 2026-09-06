@@ -12,6 +12,7 @@ const source = fs.readFileSync(
 const RELAY_PREFIX = "javboss:browser-relay:";
 const SESSION_PREFIX = "javboss:browser-session:";
 const JAVDB_ASSIST_PREFIX = "javboss:javdb-assist:";
+const TEST_TOKEN = "jbe_" + "a".repeat(43);
 const SESSION_ID = "test-session-1234";
 
 function plain(value) {
@@ -24,6 +25,7 @@ function createHarness(options = {}) {
     [`${SESSION_PREFIX}${SESSION_ID}`, { sessionId: SESSION_ID }],
   ]);
   const localData = new Map();
+  localData.set("javboss:server-tokens", options.serverTokens || {});
   if (options.magnetSettings) {
     localData.set("javboss:magnet-download-settings", options.magnetSettings);
   }
@@ -54,7 +56,12 @@ function createHarness(options = {}) {
     },
   };
 
+  const accessLevels = [];
   const localStorage = {
+    async setAccessLevel(value) {
+      accessLevels.push(value);
+      if (options.storageFailure) throw new Error("storage denied");
+    },
     async get(keys) {
       const requested = Array.isArray(keys) ? keys : [keys];
       return Object.fromEntries(
@@ -75,8 +82,17 @@ function createHarness(options = {}) {
         `chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/${resourcePath}`,
       sendMessage: async () => ({ ok: true }),
     },
-    storage: { local: localStorage, session: sessionStorage },
+    storage: {
+      local: localStorage,
+      session: sessionStorage,
+      onChanged: {
+        addListener: (listener) => {
+          listeners.storage = listener;
+        },
+      },
+    },
     tabs: {
+      query: async () => [{ id: 2 }],
       create: async (properties) => {
         createdTabs.push(properties);
         return { id: 10 };
@@ -93,11 +109,11 @@ function createHarness(options = {}) {
     },
   };
 
-  const fetch = async (url, options) => {
-    fetchCalls.push({ url, options });
+  const fetch = async (url, init) => {
+    fetchCalls.push({ url, options: init });
     return {
-      ok: true,
-      status: 201,
+      ok: !options.responseStatus || options.responseStatus < 400,
+      status: options.responseStatus || 201,
       json: async () => ({}),
     };
   };
@@ -116,6 +132,8 @@ function createHarness(options = {}) {
   }
 
   return {
+    accessLevels,
+    localData,
     createdTabs,
     data,
     fetchCalls,
@@ -128,9 +146,10 @@ function createHarness(options = {}) {
 
 test("a clicked magnet link is submitted to the configured JavBoss server", async () => {
   const harness = createHarness({
+    serverTokens: { "https://192.168.1.20:17654/javboss": TEST_TOKEN },
     magnetSettings: {
       enabled: true,
-      serverUrl: "http://192.168.1.20:17654/javboss",
+      serverUrl: "https://192.168.1.20:17654/javboss",
     },
   });
   const magnetUrl =
@@ -144,9 +163,18 @@ test("a clicked magnet link is submitted to the configured JavBoss server", asyn
   assert.equal(harness.fetchCalls.length, 1);
   assert.equal(
     harness.fetchCalls[0].url,
-    "http://192.168.1.20:17654/javboss/extension/downloads",
+    "https://192.168.1.20:17654/javboss/extension/downloads",
   );
   assert.equal(harness.fetchCalls[0].options.method, "POST");
+  assert.equal(
+    harness.fetchCalls[0].options.headers.Authorization,
+    `Bearer ${TEST_TOKEN}`,
+  );
+  assert.equal(harness.fetchCalls[0].options.credentials, "omit");
+  assert.equal(harness.fetchCalls[0].options.redirect, "error");
+  assert.deepEqual(plain(harness.accessLevels), [
+    { accessLevel: "TRUSTED_CONTEXTS" },
+  ]);
   assert.deepEqual(JSON.parse(harness.fetchCalls[0].options.body), {
     magnet_url: magnetUrl,
   });
@@ -450,4 +478,117 @@ test("a tab with the temporary marker can claim the scrape session", async () =>
   assert.deepEqual(plain(harness.data.get(`${RELAY_PREFIX}2`)), {
     sessionId: SESSION_ID,
   });
+});
+
+test("missing or mismatched server tokens never send a download request", async () => {
+  for (const serverTokens of [{}, { "https://other.example": TEST_TOKEN }]) {
+    const harness = createHarness({
+      magnetSettings: { enabled: true, serverUrl: "https://boss.example" },
+      serverTokens,
+    });
+    const response = await harness.send(
+      {
+        type: "JAVBOSS_DOWNLOAD_MAGNET",
+        magnetUrl:
+          "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567",
+      },
+      { id: 2, url: "https://example.com" },
+    );
+    assert.equal(response.ok, false);
+    assert.equal(harness.fetchCalls.length, 0);
+    assert.match(response.error, /Token/);
+  }
+});
+
+test("content settings and updates never expose the server token", async () => {
+  const harness = createHarness({
+    magnetSettings: { enabled: true, serverUrl: "https://boss.example" },
+    serverTokens: { "https://boss.example": TEST_TOKEN },
+  });
+  const response = await harness.send(
+    { type: "JAVBOSS_MAGNET_SETTINGS" },
+    { id: 2, url: "https://example.com" },
+  );
+  assert.deepEqual(plain(response), { enabled: true });
+  harness.listeners.storage(
+    { "javboss:magnet-download-settings": {} },
+    "local",
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(plain(harness.sentMessages), [
+    {
+      tabId: 2,
+      message: { type: "JAVBOSS_MAGNET_SETTINGS_CHANGED", enabled: true },
+    },
+  ]);
+});
+
+test("an expired token produces a reauthorization message", async () => {
+  const harness = createHarness({
+    magnetSettings: { enabled: true, serverUrl: "https://boss.example" },
+    serverTokens: { "https://boss.example": TEST_TOKEN },
+    responseStatus: 401,
+  });
+  const response = await harness.send(
+    {
+      type: "JAVBOSS_DOWNLOAD_MAGNET",
+      magnetUrl: "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567",
+    },
+    { id: 2, url: "https://example.com" },
+  );
+  assert.equal(response.ok, false);
+  assert.match(response.error, /重新生成/);
+  assert.equal(response.error.includes(TEST_TOKEN), false);
+});
+
+test("remote HTTP and failure to isolate storage fail closed", async () => {
+  for (const options of [
+    { serverUrl: "http://boss.example" },
+    { serverUrl: "https://boss.example", storageFailure: true },
+  ]) {
+    const harness = createHarness({
+      ...options,
+      magnetSettings: { enabled: true, serverUrl: options.serverUrl },
+      serverTokens: { [options.serverUrl]: TEST_TOKEN },
+    });
+    const response = await harness.send(
+      {
+        type: "JAVBOSS_DOWNLOAD_MAGNET",
+        magnetUrl:
+          "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567",
+      },
+      { id: 2, url: "https://example.com" },
+    );
+    assert.equal(response.ok, false);
+    assert.equal(harness.fetchCalls.length, 0);
+  }
+});
+
+test("loopback servers can use HTTP and messages cannot override the destination", async () => {
+  for (const serverUrl of [
+    "http://127.0.0.1:17654",
+    "http://localhost:17654",
+    "http://[::1]:17654",
+  ]) {
+    const harness = createHarness({
+      magnetSettings: { enabled: true, serverUrl },
+      serverTokens: { [serverUrl]: TEST_TOKEN },
+    });
+    const response = await harness.send(
+      {
+        type: "JAVBOSS_DOWNLOAD_MAGNET",
+        magnetUrl:
+          "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567",
+        serverUrl: "https://untrusted.example",
+        token: "untrusted",
+      },
+      { id: 2, url: "https://example.com" },
+    );
+    assert.equal(response.ok, true);
+    assert.equal(harness.fetchCalls[0].url, `${serverUrl}/extension/downloads`);
+    assert.equal(
+      harness.fetchCalls[0].options.headers.Authorization,
+      `Bearer ${TEST_TOKEN}`,
+    );
+  }
 });

@@ -12,7 +12,7 @@ export default function Toast({ open, message, onClose, duration = 1800 }) {
   if (!open || !message) return null
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[80] max-w-[calc(100vw-2rem)]">
+    <div className="pointer-events-none fixed bottom-4 right-4 z-[1600] max-w-[calc(100vw-2rem)]">
       <div
         role="status"
         aria-live="polite"

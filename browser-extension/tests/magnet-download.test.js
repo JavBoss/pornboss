@@ -43,7 +43,12 @@ function createHarness({
   };
   const chrome = {
     runtime: {
+      onMessage: { addListener: (listener) => storageListeners.push(listener) },
       async sendMessage(message) {
+        if (message.type === "JAVBOSS_MAGNET_SETTINGS")
+          return {
+            enabled: settings?.enabled === true && Boolean(settings?.serverUrl),
+          };
         sentMessages.push(message);
         return response;
       },
@@ -218,4 +223,27 @@ test("clicking the copy button beside a magnet does not create a task", async ()
 
   assert.equal(event.defaultPrevented, false);
   assert.equal(harness.sentMessages.length, 0);
+});
+
+test("settings messages update interception without exposing credentials to the content script", async () => {
+  const harness = createHarness();
+  await new Promise((resolve) => setImmediate(resolve));
+  harness.storageListeners[0]({
+    type: "JAVBOSS_MAGNET_SETTINGS_CHANGED",
+    enabled: true,
+  });
+  const event = clickEvent(
+    "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567",
+  );
+  harness.listeners.click(event);
+  assert.equal(event.defaultPrevented, true);
+  harness.storageListeners[0]({
+    type: "JAVBOSS_MAGNET_SETTINGS_CHANGED",
+    enabled: false,
+  });
+  const next = clickEvent(
+    "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567",
+  );
+  harness.listeners.click(next);
+  assert.equal(next.defaultPrevented, false);
 });

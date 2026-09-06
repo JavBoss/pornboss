@@ -3,6 +3,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 
+import ExtensionTokenSettings from '@/components/ExtensionTokenSettings'
 import DirectoryManager from '@/components/DirectoryManager'
 import AppModal from '@/components/AppModal'
 import PlayerSettingsModal from '@/components/PlayerSettingsModal'
@@ -46,7 +47,7 @@ const SETTINGS_SECTIONS = [
   {
     id: 'security',
     title: { zh: '安全', en: 'Security' },
-    summary: { zh: '修改密码与退出登录', en: 'Password and sign-out' },
+    summary: { zh: '密码与 API 令牌', en: 'Password and API tokens' },
   },
 ]
 
@@ -69,6 +70,7 @@ const DEFAULT_PROXY_HOST = '127.0.0.1'
 export default function GlobalSettingsModal({
   open,
   onClose,
+  onToast,
   initialSection = '',
   directories,
   browserPlaybackOnly = false,
@@ -1284,6 +1286,8 @@ export default function GlobalSettingsModal({
             {zh('退出登录', 'Sign out')}
           </button>
         </div>
+
+        <ExtensionTokenSettings onToast={onToast} />
 
         {passwordDialogOpen ? (
           <AppModal

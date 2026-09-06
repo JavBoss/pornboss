@@ -4874,6 +4874,7 @@ export default function App() {
         }}
       />
       <GlobalSettingsModal
+        onToast={showToast}
         open={globalSettingsOpen}
         onClose={() => setGlobalSettingsOpen(false)}
         directories={directories}

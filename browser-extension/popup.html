@@ -8,34 +8,53 @@
   </head>
   <body>
     <main>
-      <h1>JavDB</h1>
-      <label class="toggle section-toggle" for="javdb-auto-redirect">
-        <span>
-          <strong>启用 JavDB 自动跳转</strong>
-          <small>从 JavBoss 打开 JavDB 时自动跳转到对应详情页</small>
-        </span>
-        <input id="javdb-auto-redirect" type="checkbox" />
-      </label>
-
-      <h1>磁力下载</h1>
-      <label class="field" for="server-url">
-        <span>JavBoss Server 地址</span>
-        <input
-          id="server-url"
-          type="url"
-          inputmode="url"
-          autocomplete="url"
-          placeholder="http://127.0.0.1:17654"
-        />
-      </label>
-      <label class="toggle" for="enabled">
-        <span>
-          <strong>启用磁力下载</strong>
-          <small>点击磁力链接时询问并提交到 JavBoss</small>
-        </span>
-        <input id="enabled" type="checkbox" />
-      </label>
-      <button id="save" type="button">保存设置</button>
+      <section class="settings-section" aria-labelledby="connection-heading">
+        <h1 id="connection-heading">连接设置</h1>
+        <label class="field" for="server-url">
+          <span>JavBoss 地址</span>
+          <input
+            id="server-url"
+            type="url"
+            inputmode="url"
+            autocomplete="url"
+            placeholder="http://localhost:8655"
+          />
+        </label>
+        <label class="field token-field" for="server-token">
+          <span>API 令牌</span>
+          <input
+            id="server-token"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="在 JavBoss 全局设置 → 安全中创建"
+          />
+        </label>
+        <div class="connection-actions">
+          <button id="test-connection" type="button">测试连接</button>
+          <p id="connection-status" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+      <section class="settings-section" aria-labelledby="javdb-heading">
+        <h1 id="javdb-heading">JavDB</h1>
+        <label class="toggle section-toggle" for="javdb-auto-redirect">
+          <span>
+            <strong>启用 JavDB 自动跳转</strong>
+            <small>从 JavBoss 打开 JavDB 时自动跳转到对应详情页</small>
+          </span>
+          <input id="javdb-auto-redirect" type="checkbox" />
+        </label>
+      </section>
+      <section class="settings-section" aria-labelledby="magnet-heading">
+        <h1 id="magnet-heading">磁力下载</h1>
+        <label class="toggle section-toggle" for="enabled">
+          <span>
+            <strong>启用磁力下载</strong>
+            <small>点击磁力链接时询问并提交到 JavBoss</small>
+          </span>
+          <input id="enabled" type="checkbox" />
+        </label>
+      </section>
       <p id="status" role="status" aria-live="polite"></p>
     </main>
     <script src="popup.js"></script>

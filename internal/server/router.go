@@ -17,13 +17,18 @@ import (
 // NewRouter constructs a gin router with API routes and optional static file serving.
 func NewRouter(staticDir string, auth *AuthService) *gin.Engine {
 	router := gin.New()
-	router.Use(ginLogger(), gin.Recovery())
+	router.Use(ginLogger(), gin.Recovery(), extensionAPIAccess())
 	router.GET("/healthz", handleHealth)
 	registerAuthRoutes(router, auth)
-	registerExtensionDownloadRoutes(router)
 	protected := router.Group("/")
 	protected.Use(auth.requireAuth())
+	registerExtensionDownloadRoutes(protected)
+	protected.GET("/extension/status", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusOK, gin.H{"authenticated": true})
+	})
 	registerProtectedAuthRoutes(protected, auth)
+	registerExtensionTokenRoutes(protected)
 	RegisterRoutes(protected)
 
 	if staticDir != "" {
