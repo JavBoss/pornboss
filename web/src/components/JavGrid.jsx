@@ -3020,20 +3020,20 @@ function JavCard({
           </div>
           <div className="flex min-w-0 flex-nowrap items-center gap-x-3 overflow-hidden text-xs text-gray-600">
             <span className="inline-flex shrink-0 items-center gap-1">
+              <Tooltip title={zh('发行日期', 'Release date')} arrow>
+                <span className="inline-flex">
+                  <ReleaseIcon />
+                </span>
+              </Tooltip>
+              <span className="text-gray-800">{releaseText}</span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1">
               <Tooltip title={zh('时长', 'Duration')} arrow>
                 <span className="inline-flex">
                   <DurationIcon />
                 </span>
               </Tooltip>
               <span>{durationText || zh('时长未知', 'Unknown duration')}</span>
-            </span>
-            <span className="inline-flex shrink-0 items-center gap-1">
-              <Tooltip title={zh('发行日期', 'Release date')} arrow>
-                <span className="inline-flex">
-                  <ReleaseIcon />
-                </span>
-              </Tooltip>
-              <span>{releaseText}</span>
             </span>
             {studioText ? (
               <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
