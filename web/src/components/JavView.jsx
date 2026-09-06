@@ -118,7 +118,7 @@ export default function JavView({
               if (javHasNext) setJavPage(javPage + 1)
             }}
             onLast={() => setJavPage(javLastPage)}
-            waterfallMode={activeWaterfallMode}
+            waterfallMode={waterfallMode}
             onWaterfallModeChange={onWaterfallModeChange}
             totalItemsAction={
               <BulkActionsMenu

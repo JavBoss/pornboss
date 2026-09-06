@@ -131,7 +131,7 @@ export default function VideoView({
               onLast={() => {
                 goToLastPage()
               }}
-              waterfallMode={activeWaterfallMode}
+              waterfallMode={waterfallMode}
               onWaterfallModeChange={onWaterfallModeChange}
               totalItemsAction={bulkActionMenu}
             />
