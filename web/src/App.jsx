@@ -4607,6 +4607,7 @@ export default function App() {
         groups={favoriteGroupsByType?.jav || []}
         selectedIds={javSelection.favoriteChoices}
         onToggleChoice={javSelection.toggleFavorite}
+        onCreateGroup={(name) => handleCreateFavoriteGroup(name, 'jav')}
         onClose={javSelection.closeFavorites}
         onConfirm={javSelection.applyFavorites}
         onReload={() => loadJavFavoriteGroups('jav', { force: true })}
