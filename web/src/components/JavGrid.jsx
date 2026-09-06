@@ -3297,10 +3297,7 @@ function JavCard({
           preferChineseName={preferChineseName}
           canPlay={canPlay}
           onClose={() => setDetailOpen(false)}
-          onPlay={() => {
-            if (onManageVideoPlay) onManageVideoPlay(primaryVideo)
-            else onPlay?.(primaryVideo, item)
-          }}
+          onPlay={handlePlay}
           onOpenFavorites={() => onOpenJavFavorites?.(item)}
           onEdit={() => setEditorOpen(true)}
           favoriteRating={favoriteRating}
