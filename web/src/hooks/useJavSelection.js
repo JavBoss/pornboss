@@ -80,13 +80,17 @@ export default function useJavSelection({ items, mpvEnabled, playVideos, showToa
   }
 
   const selectItems = (list) => {
+    const entries = new Map(
+      (list || []).filter((item) => Number(item?.id) > 0).map((item) => [Number(item.id), item])
+    )
     setSelection((current) => {
       const next = new Map(current)
-      for (const item of list) {
-        if (Number(item?.id) > 0) next.set(Number(item.id), item)
+      for (const [id, item] of entries) {
+        next.set(id, item)
       }
       return next
     })
+    return entries.size
   }
 
   const fetchAll = () => {
@@ -250,8 +254,20 @@ export default function useJavSelection({ items, mpvEnabled, playVideos, showToa
         return Array.from(next)
       }),
     applyFavorites,
-    selectPage: () => runAction('select', () => selectItems(items)),
-    selectAll: () => runAction('select', async () => selectItems(await fetchAll())),
+    selectPage: () =>
+      runAction('select', () => {
+        const count = selectItems(items)
+        if (count > 0) {
+          showToast(zh(`已选择本页 ${count} 部 JAV`, `Selected ${count} JAV items on this page`))
+        }
+      }),
+    selectAll: () =>
+      runAction('select', async () => {
+        const count = selectItems(await fetchAll())
+        if (count > 0) {
+          showToast(zh(`已选择全部 ${count} 部 JAV`, `Selected all ${count} JAV items`))
+        }
+      }),
     playPage: () => play(() => items),
     playAll: () => play(fetchAll),
     playSelected: () => play(() => selectedItems),

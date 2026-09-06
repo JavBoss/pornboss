@@ -412,6 +412,7 @@ export default function App() {
   )
   const [javResolvedIdols, setJavResolvedIdols] = useState({})
   const [toastMessage, setToastMessage] = useState('')
+  const [toastDuration, setToastDuration] = useState(1800)
   const [centerToastMessage, setCenterToastMessage] = useState('')
   const javSortResolution = resolveJavSort({
     javSearchTerm,
@@ -489,8 +490,9 @@ export default function App() {
       : alternatePlayer === 'system'
         ? zh('用默认程序打开', 'Open with default app')
         : ''
-  const showToast = useCallback((message) => {
+  const showToast = useCallback((message, duration = 1800) => {
     setToastMessage(String(message || '').trim())
+    setToastDuration(duration)
   }, [])
   const closeToast = useCallback(() => {
     setToastMessage('')
@@ -4887,7 +4889,8 @@ export default function App() {
             zh(
               '目录添加成功，首次扫描目录里的视频需要一定时间，请耐心等待，您可手动刷新页面查看扫描进度',
               'Directory added. The first scan may take some time. You can refresh manually to check progress.'
-            )
+            ),
+            4000
           )
           return created
         }}
@@ -4904,13 +4907,13 @@ export default function App() {
         onProcessDirectory={async (id, mode, layout) => {
           const result = await processDirectory(id, mode, layout)
           await loadDirectories()
-          showToast(zh('目录任务已启动', 'Directory task started'))
+          showToast(zh('目录任务已启动', 'Directory task started'), 4000)
           return result
         }}
         onScanDirectory={async (id) => {
           const result = await scanDirectory(id)
           await loadDirectories()
-          showToast(zh('目录扫描已启动', 'Directory scan started'))
+          showToast(zh('目录扫描已启动', 'Directory scan started'), 4000)
           return result
         }}
         onRefreshDirectories={loadDirectories}
@@ -4998,7 +5001,12 @@ export default function App() {
         onChangePassword={changePassword}
         onLogout={logout}
       />
-      <Toast open={Boolean(toastMessage)} message={toastMessage} onClose={closeToast} />
+      <Toast
+        open={Boolean(toastMessage)}
+        message={toastMessage}
+        duration={toastDuration}
+        onClose={closeToast}
+      />
       <CenterToast
         open={Boolean(centerToastMessage)}
         message={centerToastMessage}
