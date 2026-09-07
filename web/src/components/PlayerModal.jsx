@@ -12,6 +12,7 @@ import {
 import { zh } from '@/utils/i18n'
 import AppModal from '@/components/AppModal'
 import { getErrorMessage } from '@/utils/errors'
+import { selectPlaybackSource, startBrowserPlayback } from '@/utils/browserPlayback'
 
 const VOLUME_STORAGE_KEY = 'javboss.player.volume'
 const HOTKEY_HINT_DURATION_MS = 5000
@@ -28,8 +29,10 @@ export default function PlayerModal({
   showHotkeyHint = true,
   onPlaybackError,
 }) {
-  const videoRef = useRef(null)
+  const videoContainerRef = useRef(null)
   const playerRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+  const onPlaybackErrorRef = useRef(onPlaybackError)
   const hotkeyMapRef = useRef(new Map())
   const screenshotInFlightRef = useRef(false)
   const screenshotNoticeTimerRef = useRef(null)
@@ -62,11 +65,7 @@ export default function PlayerModal({
     return lines
   }, [normalizedHotkeys])
   const selectedSource = useMemo(() => {
-    if (!playbackInfo?.sources?.length) return null
-    return (
-      playbackInfo.sources.find((item) => item.kind === playbackInfo.preferred_kind) ||
-      playbackInfo.sources[0]
-    )
+    return selectPlaybackSource(playbackInfo, document.createElement('video'))
   }, [playbackInfo])
 
   useEffect(() => {
@@ -81,6 +80,11 @@ export default function PlayerModal({
   useEffect(() => {
     hotkeyMapRef.current = new Map(normalizedHotkeys.map((item) => [item.key, item]))
   }, [normalizedHotkeys])
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+    onPlaybackErrorRef.current = onPlaybackError
+  }, [onClose, onPlaybackError])
 
   useEffect(() => {
     return () => {
@@ -114,7 +118,7 @@ export default function PlayerModal({
         if (cancelled) return
         const message = getErrorMessage(err)
         setPlaybackError(message)
-        onPlaybackError?.(message)
+        onPlaybackErrorRef.current?.(message)
       })
       .finally(() => {
         if (cancelled) return
@@ -124,21 +128,20 @@ export default function PlayerModal({
     return () => {
       cancelled = true
     }
-  }, [onPlaybackError, video])
+  }, [video])
 
   useEffect(() => {
-    if (!video || !videoRef.current || !selectedSource?.src) return
+    if (loadingPlayback || !video || !videoContainerRef.current || !selectedSource?.src) return
 
-    const player = videojs(videoRef.current, {
+    // Video.js removes its element on dispose; let React own only the container.
+    const videoElement = document.createElement('video-js')
+    videoElement.classList.add('video-js', 'vjs-big-play-centered', 'h-full', 'w-full')
+    videoElement.setAttribute('playsinline', '')
+    videoContainerRef.current.appendChild(videoElement)
+    const player = videojs(videoElement, {
       controls: true,
       autoplay: true,
       preload: 'auto',
-      sources: [
-        {
-          src: selectedSource.src,
-          type: selectedSource.mime_type || 'video/mp4',
-        },
-      ],
     })
 
     playerRef.current = player
@@ -244,7 +247,7 @@ export default function PlayerModal({
         }
         case 'Escape':
           markHandled()
-          onClose()
+          onCloseRef.current?.()
           break
         default:
           return
@@ -253,11 +256,6 @@ export default function PlayerModal({
 
     const focusPlayer = () => {
       playerEl?.focus({ preventScroll: true })
-    }
-    const applyStartTime = () => {
-      const nextStartTime = Number(startTime)
-      if (!Number.isFinite(nextStartTime) || nextStartTime <= 0) return
-      player.currentTime(nextStartTime)
     }
 
     if (playerEl && !playerEl.hasAttribute('tabindex')) {
@@ -274,21 +272,30 @@ export default function PlayerModal({
       }
     }
 
-    player.ready(() => {
-      applyStartTime()
-      focusPlayer()
-    })
+    const stopPlayback = startBrowserPlayback(
+      player,
+      selectedSource,
+      playbackInfo.sources.find((source) => source.kind === 'hls'),
+      startTime,
+      (error) => {
+        const message = error.message || zh('视频播放失败', 'Video playback failed')
+        setPlaybackError(message)
+        onPlaybackErrorRef.current?.(message)
+      }
+    )
+    player.ready(focusPlayer)
     player.on('fullscreenchange', focusPlayer)
     player.on('volumechange', handleVolumeChange)
 
     return () => {
+      stopPlayback()
       window.removeEventListener('keydown', handleKeyDown, true)
       player.off('fullscreenchange', focusPlayer)
       player.off('volumechange', handleVolumeChange)
-      playerRef.current?.dispose()
+      player.dispose()
       playerRef.current = null
     }
-  }, [video, startTime, onClose, selectedSource])
+  }, [video, startTime, selectedSource, playbackInfo, loadingPlayback])
 
   if (!video) return null
 
@@ -335,20 +342,15 @@ export default function PlayerModal({
             <div className="flex aspect-video items-center justify-center text-sm text-white">
               {zh('加载播放信息中…', 'Loading playback info...')}
             </div>
-          ) : playbackError ? (
-            <div className="flex aspect-video items-center justify-center px-6 text-center text-sm text-red-200">
-              {playbackError}
-            </div>
           ) : (
-            <div data-vjs-player className="h-full w-full">
-              <video
-                ref={videoRef}
-                className="video-js vjs-big-play-centered h-full w-full"
-                playsInline
-              >
-                <track kind="captions" />
-              </video>
-            </div>
+            <>
+              <div ref={videoContainerRef} data-vjs-player className="h-full w-full" />
+              {playbackError ? (
+                <div role="alert" className="px-6 py-4 text-center text-sm text-red-200">
+                  {playbackError}
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </div>

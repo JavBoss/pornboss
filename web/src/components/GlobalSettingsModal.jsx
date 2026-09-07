@@ -382,8 +382,8 @@ export default function GlobalSettingsModal({
             </h4>
             <p className="mt-1 text-sm text-zinc-500">
               {zh(
-                '浏览器默认只能播放 MP4 格式视频，如果需要播放任意格式视频需前往“工具”中确认 FFmpeg 已安装。',
-                'Browsers can only play MP4 videos by default. To play videos in any format, go to Tools and make sure FFmpeg is installed.'
+                '优先使用浏览器直接播放，格式或编码不支持时自动转码。请前往“工具”确认 FFmpeg 已安装。',
+                'Videos play directly when supported by your browser, with automatic transcoding as a fallback. Go to Tools to check that FFmpeg is installed.'
               )}
             </p>
           </div>
@@ -422,8 +422,8 @@ export default function GlobalSettingsModal({
             {defaultPlayerInput === 'browser' ? (
               <p className="mt-1 text-sm text-zinc-500">
                 {zh(
-                  '浏览器默认只能播放 MP4 格式视频，如果需要播放任意格式视频需前往“工具”中确认 FFmpeg 已安装。',
-                  'Browsers can only play MP4 videos by default. To play videos in any format, go to Tools and make sure FFmpeg is installed.'
+                  '优先使用浏览器直接播放，格式或编码不支持时自动转码。请前往“工具”确认 FFmpeg 已安装。',
+                  'Videos play directly when supported by your browser, with automatic transcoding as a fallback. Go to Tools to check that FFmpeg is installed.'
                 )}
               </p>
             ) : null}

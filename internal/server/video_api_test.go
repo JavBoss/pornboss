@@ -16,6 +16,7 @@ import (
 	dbpkg "javboss/internal/db"
 	"javboss/internal/jav"
 	"javboss/internal/models"
+	"javboss/internal/util"
 
 	"github.com/gin-gonic/gin"
 )
@@ -471,6 +472,47 @@ func TestManualScrapeRequestToJavInfoRequiresCoreMetadata(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, test.wantErr)
 			}
 		})
+	}
+}
+
+func TestPlaybackInfoAdvertisesNativeCandidates(t *testing.T) {
+	for _, tt := range []struct {
+		container string
+		codec     string
+		mime      string
+	}{
+		{"mp4", "hevc", "video/mp4"},
+		{"mp4", "av1", "video/mp4"},
+		{"mkv", "h264", "video/x-matroska"},
+		{"mov", "hevc", "video/quicktime"},
+		{"webm", "av1", "video/webm"},
+		{"avi", "mpeg4", ""},
+	} {
+		t.Run(tt.container+"_"+tt.codec, func(t *testing.T) {
+			info := buildPlaybackInfo(&models.Video{ID: 42}, 7, &util.PlaybackProbeResult{
+				Container: tt.container, VideoCodec: tt.codec, AudioCodec: "aac",
+			})
+			if info.VideoCodec != tt.codec || info.AudioCodec != "aac" || info.PreferredKind != "hls" {
+				t.Fatalf("unexpected playback metadata: %+v", info)
+			}
+			if tt.mime != "" {
+				if len(info.Sources) != 2 || info.Sources[0].Kind != "direct" || info.Sources[0].MimeType != tt.mime || info.Sources[0].Src != "/videos/42/stream?location_id=7" {
+					t.Fatalf("missing native playback candidate: %+v", info.Sources)
+				}
+			} else if len(info.Sources) != 1 {
+				t.Fatalf("unexpected native candidate: %+v", info.Sources)
+			}
+			fallback := info.Sources[len(info.Sources)-1]
+			if fallback.Kind != "hls" || fallback.Src != "/videos/42/stream.m3u8?location_id=7" {
+				t.Fatalf("missing HLS fallback: %+v", fallback)
+			}
+		})
+	}
+	info := buildPlaybackInfo(&models.Video{ID: 42}, 0, &util.PlaybackProbeResult{
+		Container: "mp4", VideoCodec: "h264", SupportsDirect: true,
+	})
+	if info.PreferredKind != "direct" || len(info.Sources) != 2 {
+		t.Fatalf("changed legacy direct preference: %+v", info)
 	}
 }
 
