@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import { CircularProgress, IconButton, Switch, Tooltip } from '@mui/material'
@@ -556,27 +557,6 @@ export default function DirectoryManager({
                       <div className="min-w-0 truncate text-sm font-medium">
                         {displayPath(d.path)}
                       </div>
-                      <div className="flex shrink-0 items-center gap-1 text-xs font-normal text-zinc-500">
-                        <span>{autoScanDisplay}</span>
-                        <Tooltip title={zh('编辑扫描设置', 'Edit scan settings')} arrow>
-                          <span className="inline-flex">
-                            <IconButton
-                              type="button"
-                              size="small"
-                              onClick={() => openScanSettings(d)}
-                              disabled={d.is_delete || savingScanSettingsId === d.id}
-                              aria-label={zh('编辑扫描设置', 'Edit scan settings')}
-                              className="!h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900 disabled:!opacity-60"
-                            >
-                              {savingScanSettingsId === d.id ? (
-                                <CircularProgress size={13} color="inherit" />
-                              ) : (
-                                <SettingsRoundedIcon sx={{ fontSize: 15 }} />
-                              )}
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </div>
                     </div>
                   ) : (
                     <form onSubmit={handleEditSubmit} className="space-y-2">
@@ -662,27 +642,61 @@ export default function DirectoryManager({
                     )}
                   </div>
                   {!isEditing && (
-                    <>
-                      {lastScanFinishedAt ? (
-                        <div className="overflow-x-auto whitespace-nowrap text-xs text-zinc-500">
-                          <span>{zh('上次扫描：结束时间 ', 'Last scan: Finished at ')}</span>
-                          <span className="font-semibold tabular-nums text-zinc-900">
-                            {lastScanFinishedAt}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+                      <div className="flex items-center">
+                        <span>{zh('上次扫描：', 'Last scan:')}</span>
+                        <Tooltip
+                          arrow
+                          describeChild
+                          slotProps={{ tooltip: { sx: { maxWidth: 'none' } } }}
+                          title={
+                            lastScanFinishedAt ? (
+                              <div className="whitespace-nowrap py-1 text-xs">
+                                {zh('结束时间：', 'Finished at: ')}
+                                <span className="tabular-nums">{lastScanFinishedAt}</span>
+                                <span className="mx-2" aria-hidden="true">
+                                  ·
+                                </span>
+                                {zh('耗时：', 'Duration: ')}
+                                {formatScanDuration(d.last_scan_summary)}
+                              </div>
+                            ) : (
+                              zh('暂无扫描记录', 'No scan record')
+                            )
+                          }
+                        >
+                          <IconButton
+                            type="button"
+                            size="small"
+                            aria-label={zh('上次扫描详情', 'Last scan details')}
+                            className="!-ml-1 !h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900"
+                          >
+                            <InfoOutlinedIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1 text-xs font-normal text-zinc-500">
+                        <span>{autoScanDisplay}</span>
+                        <Tooltip title={zh('编辑扫描设置', 'Edit scan settings')} arrow>
+                          <span className="inline-flex">
+                            <IconButton
+                              type="button"
+                              size="small"
+                              onClick={() => openScanSettings(d)}
+                              disabled={d.is_delete || savingScanSettingsId === d.id}
+                              aria-label={zh('编辑扫描设置', 'Edit scan settings')}
+                              className="!h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900 disabled:!opacity-60"
+                            >
+                              {savingScanSettingsId === d.id ? (
+                                <CircularProgress size={13} color="inherit" />
+                              ) : (
+                                <SettingsRoundedIcon sx={{ fontSize: 15 }} />
+                              )}
+                            </IconButton>
                           </span>
-                          <span aria-hidden="true" className="mx-2 text-zinc-300">
-                            ·
-                          </span>
-                          <span>{zh('耗时 ', 'Duration ')}</span>
-                          <span className="font-semibold tabular-nums text-zinc-900">
-                            {formatScanDuration(d.last_scan_summary)}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-zinc-500">
-                          {zh('上次扫描：暂无记录', 'Last scan: No record')}
-                        </div>
-                      )}
-                    </>
+                        </Tooltip>
+                      </div>
+                    </div>
                   )}
                   {rowErrorId === d.id && rowErrorMsg && (
                     <div className="text-xs text-red-600">{rowErrorMsg}</div>
