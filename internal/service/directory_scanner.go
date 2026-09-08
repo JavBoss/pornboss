@@ -27,8 +27,9 @@ type directoryScanSession struct {
 	progress *directoryScanProgress
 }
 
-// DirectoryScanProgress counts reconciled files and successfully linked files in one scan.
+// DirectoryScanProgress counts visited files, reconciled videos and linked videos in one scan.
 type DirectoryScanProgress struct {
+	ScannedFileCount  int64
 	ScannedVideoCount int64
 	ScrapedVideoCount int64
 }
@@ -39,6 +40,15 @@ type directoryScanProgress struct {
 }
 
 type directoryScanProgressKey struct{}
+
+func (p *directoryScanProgress) recordFile() {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.ScannedFileCount++
+}
 
 func (p *directoryScanProgress) record(scraped bool) {
 	if p == nil {

@@ -30,8 +30,9 @@ func listDirectories(c *gin.Context) {
 	}
 	type directoryResponse struct {
 		models.Directory
-		IsScanning bool   `json:"is_scanning"`
-		WorkStatus string `json:"work_status"`
+		IsScanning       bool   `json:"is_scanning"`
+		WorkStatus       string `json:"work_status"`
+		ScannedFileCount int64  `json:"scanned_file_count"` // Current scan only; zero when idle.
 	}
 	response := make([]directoryResponse, len(dirs))
 	for i := range dirs {
@@ -44,6 +45,9 @@ func listDirectories(c *gin.Context) {
 			Directory:  dirs[i],
 			IsScanning: workStatus == service.DirectoryWorkScanning,
 			WorkStatus: workStatus,
+		}
+		if progress != nil {
+			response[i].ScannedFileCount = progress.ScannedFileCount
 		}
 	}
 	c.JSON(http.StatusOK, response)

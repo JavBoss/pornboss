@@ -614,7 +614,21 @@ export default function DirectoryManager({
                   <div className="flex flex-wrap items-center gap-2">
                     {!isEditing && (
                       <div className="flex items-center divide-x divide-zinc-200 text-xs text-zinc-500">
-                        <span className="pr-3">
+                        {status === 'scanning' && (
+                          <span
+                            className="pr-3"
+                            title={zh(
+                              '本轮已遍历的文件数，包含非视频文件，不含文件夹',
+                              'Files visited in this scan, including non-video files and excluding folders'
+                            )}
+                          >
+                            {zh('已扫描文件', 'Scanned files')}{' '}
+                            <strong className="font-semibold tabular-nums text-zinc-800">
+                              {Number(d.scanned_file_count) || 0}
+                            </strong>
+                          </span>
+                        )}
+                        <span className={status === 'scanning' ? 'px-3' : 'pr-3'}>
                           {zh('已扫描视频', 'Scanned videos')}{' '}
                           <strong className="font-semibold tabular-nums text-zinc-800">
                             {Number(d.scanned_video_count) || 0}

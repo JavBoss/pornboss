@@ -236,6 +236,7 @@ func reconcileDirectoryContents(ctx context.Context, dir models.Directory, state
 func walkAndReconcileVideoFiles(ctx context.Context, directory models.Directory, state *syncState, summary *Summary) error {
 	// 边遍历文件边做指纹计算和 DB 更新，避免一次性构建全量快照
 	normalizedRoot := filepath.Clean(directory.Path)
+	progress, _ := ctx.Value(directoryScanProgressKey{}).(*directoryScanProgress)
 	return filepath.WalkDir(normalizedRoot, func(candidatePath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			logging.Error("walk directory entry failed, skip: root=%s path=%s err=%v", normalizedRoot, candidatePath, walkErr)
@@ -249,6 +250,8 @@ func walkAndReconcileVideoFiles(ctx context.Context, directory models.Directory,
 		if entry.IsDir() {
 			return nil
 		}
+		// Count every visited file, including non-video files, before video filtering/probing.
+		progress.recordFile()
 		if !util.IsVideoCandidate(candidatePath) {
 			return nil
 		}

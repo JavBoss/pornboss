@@ -66,12 +66,23 @@ func TestDirectoryScanProgressCountsCurrentFilesAndSuccessfulLinks(t *testing.T)
 		}
 	}
 
-	assertProgress := func(scanned, scraped int64) {
+	// Non-video files count too, including nested files; folders themselves do not.
+	if err := os.Mkdir(filepath.Join(dir.Path, "extras"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"cover.jpg", filepath.Join("extras", "info.nfo")} {
+		if err := os.WriteFile(filepath.Join(dir.Path, name), []byte{0}, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	assertProgress := func(files, scanned, scraped int64) {
 		t.Helper()
 		status, progress := DirectoryWorkSnapshot(dir.ID)
 		if status != DirectoryWorkScanning || progress == nil ||
+			progress.ScannedFileCount != files ||
 			progress.ScannedVideoCount != scanned || progress.ScrapedVideoCount != scraped {
-			t.Fatalf("status=%s progress=%+v, want scanning with %d/%d", status, progress, scanned, scraped)
+			t.Fatalf("status=%s progress=%+v, want scanning with %d files and %d/%d videos", status, progress, files, scanned, scraped)
 		}
 	}
 	scanCtx, finish, err := acquireDirectoryScanSession(t.Context(), dir.ID)
@@ -79,7 +90,7 @@ func TestDirectoryScanProgressCountsCurrentFilesAndSuccessfulLinks(t *testing.T)
 		t.Fatal(err)
 	}
 	defer finish()
-	assertProgress(0, 0)
+	assertProgress(0, 0, 0)
 	// Delay workers so the file-scan and metadata stages can be checked independently.
 	batch := &javLinkBatch{ctx: scanCtx, tasks: make(chan int64, 10), seen: make(map[int64]struct{})}
 	state, err := loadDirectorySyncState(scanCtx, dir.ID, batch)
@@ -89,14 +100,14 @@ func TestDirectoryScanProgressCountsCurrentFilesAndSuccessfulLinks(t *testing.T)
 	if err := walkAndReconcileVideoFiles(scanCtx, dir, state, &Summary{}); err != nil {
 		t.Fatal(err)
 	}
-	assertProgress(3, 0)
+	assertProgress(5, 3, 0)
 	for id := range batch.seen {
 		batch.Enqueue(id) // Duplicate queue entries must not inflate either counter.
 	}
 	batch.workers.Add(1)
 	go batch.worker()
 	batch.Wait()
-	assertProgress(3, 2)
+	assertProgress(5, 3, 2)
 	if status, progress := DirectoryWorkSnapshot(dir.ID + 1); status != DirectoryWorkIdle || progress != nil {
 		t.Fatalf("another directory inherited scan progress: %s %+v", status, progress)
 	}
@@ -109,7 +120,7 @@ func TestDirectoryScanProgressCountsCurrentFilesAndSuccessfulLinks(t *testing.T)
 		t.Fatal(err)
 	}
 	defer nextFinish()
-	assertProgress(0, 0)
+	assertProgress(0, 0, 0)
 	nextFinish()
 	release, err := CancelAndReserveDirectoryScan(t.Context(), dir.ID)
 	if err != nil {
