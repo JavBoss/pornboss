@@ -669,7 +669,7 @@ export default function DirectoryManager({
                             type="button"
                             size="small"
                             aria-label={zh('上次扫描详情', 'Last scan details')}
-                            className="!-ml-1 !h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900"
+                            className="!-ml-1.5 !h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900"
                           >
                             <InfoOutlinedIcon sx={{ fontSize: 15 }} />
                           </IconButton>
