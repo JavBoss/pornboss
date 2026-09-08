@@ -31,7 +31,10 @@ type FileEntry struct {
 	Fingerprint   string
 	PathKey       string
 	DurationSec   int64
+	StrmDigest    string
 }
+
+var probeVideoContext = util.ProbeVideoContext
 
 // Summary 汇总一次目录扫描产生的文件与目录变更数量。
 type Summary struct {
@@ -249,7 +252,8 @@ func walkAndReconcileVideoFiles(ctx context.Context, directory models.Directory,
 		if entry.IsDir() {
 			return nil
 		}
-		if !util.IsVideoCandidate(candidatePath) {
+		isSTRM := util.IsSTRMPath(candidatePath)
+		if !isSTRM && !util.IsVideoCandidate(candidatePath) {
 			return nil
 		}
 
@@ -274,11 +278,30 @@ func walkAndReconcileVideoFiles(ctx context.Context, directory models.Directory,
 		relativePath = filepath.ToSlash(cleanRelativePath(relativePath))
 		modTime := info.ModTime().UTC()
 		summary.FilesSeen++
+		pathKey := makePathKey(directory.ID, relativePath)
+		existingLoc := state.existingLocationByPath[pathKey]
+		existingVideo := (*models.Video)(nil)
+		if existingLoc != nil {
+			existingVideo = state.existingByID[existingLoc.VideoID]
+		}
+
+		if isSTRM {
+			return reconcileSTRMLocation(
+				ctx,
+				directory,
+				normalizedPath,
+				relativePath,
+				info,
+				modTime,
+				existingLoc,
+				existingVideo,
+				state,
+				summary,
+			)
+		}
 
 		// If file unchanged (size + mtime), skip probe and DB touches but mark as seen.
-		pathKey := makePathKey(directory.ID, relativePath)
-		if existingLoc, ok := state.existingLocationByPath[pathKey]; ok {
-			existingVideo := state.existingByID[existingLoc.VideoID]
+		if existingLoc != nil {
 			if existingVideo != nil && existingVideo.Size == info.Size() && existingLoc.ModifiedAt.Equal(modTime) {
 				state.processedLocationIDs[existingLoc.ID] = struct{}{}
 				if existingLoc.IsDelete {
@@ -304,7 +327,7 @@ func walkAndReconcileVideoFiles(ctx context.Context, directory models.Directory,
 
 		logging.Info("scan file: root=%s path=%s size=%d", normalizedRoot, relativePath, info.Size())
 
-		meta, err := util.ProbeVideoContext(ctx, normalizedPath)
+		meta, err := probeVideoContext(ctx, normalizedPath)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return err
@@ -329,6 +352,111 @@ func walkAndReconcileVideoFiles(ctx context.Context, directory models.Directory,
 
 		return upsertVideo(ctx, fileEntry, state, summary)
 	})
+}
+
+// reconcileSTRMLocation reads the locator on every scan. Only a changed target
+// digest triggers remote probing; an mtime-only change updates the location.
+func reconcileSTRMLocation(
+	ctx context.Context,
+	directory models.Directory,
+	absolutePath string,
+	relativePath string,
+	info fs.FileInfo,
+	modifiedAt time.Time,
+	existingLoc *models.VideoLocation,
+	existingVideo *models.Video,
+	state *syncState,
+	summary *Summary,
+) error {
+	source, err := util.ResolveMediaSource(absolutePath)
+	if err != nil {
+		logging.Error("read strm locator failed, skip: path=%s err=%v", absolutePath, err)
+		preserveExistingSTRMLocation(existingLoc, state)
+		return nil
+	}
+
+	if existingLoc != nil && existingVideo != nil && source.STRMDigest == existingLoc.StrmDigest {
+		state.processedLocationIDs[existingLoc.ID] = struct{}{}
+		if existingLoc.ModifiedAt.Equal(modifiedAt) && !existingLoc.IsDelete {
+			state.javLinks.Enqueue(existingLoc.ID)
+			return nil
+		}
+		saved, err := db.UpsertVideoLocationWithSTRMDigest(
+			ctx,
+			existingLoc.VideoID,
+			directory.ID,
+			relativePath,
+			modifiedAt,
+			source.STRMDigest,
+		)
+		if err != nil {
+			logging.Error("update unchanged strm location failed, skip: path=%s err=%v", absolutePath, err)
+			return nil
+		}
+		trackSavedLocation(saved, state)
+		summary.Updated++
+		return nil
+	}
+
+	logging.Info("probe strm target: root=%s path=%s", directory.Path, relativePath)
+	meta, err := probeVideoContext(ctx, source.Input)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return err
+		}
+		logging.Error("probe strm target error, skip: path=%s err=%v", absolutePath, err)
+		preserveExistingSTRMLocation(existingLoc, state)
+		return nil
+	}
+	if meta == nil {
+		logging.Error("probe strm target returned no metadata, skip: path=%s", absolutePath)
+		preserveExistingSTRMLocation(existingLoc, state)
+		return nil
+	}
+	durationSec := int64(math.Round(meta.DurationSeconds))
+	if durationSec <= 0 || meta.Size <= 0 {
+		logging.Error(
+			"probe strm target missing duration or size, skip: path=%s duration=%f size=%d",
+			absolutePath,
+			meta.DurationSeconds,
+			meta.Size,
+		)
+		preserveExistingSTRMLocation(existingLoc, state)
+		return nil
+	}
+
+	entry := &FileEntry{
+		DirectoryID:   directory.ID,
+		DirectoryPath: directory.Path,
+		RelativePath:  relativePath,
+		AbsolutePath:  absolutePath,
+		Filename:      info.Name(),
+		Size:          meta.Size,
+		ModifiedAt:    modifiedAt,
+		Fingerprint:   meta.FingerprintV2(meta.Size),
+		DurationSec:   durationSec,
+		StrmDigest:    source.STRMDigest,
+	}
+	return upsertVideo(ctx, entry, state, summary)
+}
+
+func preserveExistingSTRMLocation(existingLoc *models.VideoLocation, state *syncState) {
+	if existingLoc == nil {
+		return
+	}
+	state.processedLocationIDs[existingLoc.ID] = struct{}{}
+	if !existingLoc.IsDelete {
+		state.javLinks.Enqueue(existingLoc.ID)
+	}
+}
+
+func trackSavedLocation(loc *models.VideoLocation, state *syncState) {
+	if loc == nil {
+		return
+	}
+	state.processedLocationIDs[loc.ID] = struct{}{}
+	state.existingLocationByPath[makePathKey(loc.DirectoryID, loc.RelativePath)] = loc
+	state.javLinks.Enqueue(loc.ID)
 }
 
 // upsertVideo 根据文件指纹复用或创建视频，并写入当前目录中的文件位置。
@@ -394,15 +522,18 @@ func upsertVideo(ctx context.Context, entry *FileEntry, state *syncState, summar
 
 // upsertLocationForEntry 保存视频文件位置，并加入本次 JAV 关联队列。
 func upsertLocationForEntry(ctx context.Context, video *models.Video, entry *FileEntry, state *syncState) error {
-	loc, err := db.UpsertVideoLocation(ctx, video.ID, entry.DirectoryID, entry.RelativePath, entry.ModifiedAt)
+	loc, err := db.UpsertVideoLocationWithSTRMDigest(
+		ctx,
+		video.ID,
+		entry.DirectoryID,
+		entry.RelativePath,
+		entry.ModifiedAt,
+		entry.StrmDigest,
+	)
 	if err != nil {
 		return err
 	}
-	if loc != nil {
-		state.processedLocationIDs[loc.ID] = struct{}{}
-		state.existingLocationByPath[makePathKey(loc.DirectoryID, loc.RelativePath)] = loc
-		state.javLinks.Enqueue(loc.ID)
-	}
+	trackSavedLocation(loc, state)
 	state.existingByID[video.ID] = video
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -25,6 +26,8 @@ import (
 	"javboss/internal/runtimeconfig"
 	"javboss/internal/util"
 )
+
+var remoteMediaHTTPClient = util.NewHTTPClient(0)
 
 func listVideos(c *gin.Context) {
 	limit := queryInt(c, "limit", 100)
@@ -198,7 +201,7 @@ func buildPlaybackInfo(video *models.Video, locationID int64, probe *util.Playba
 		VideoCodec:    probe.VideoCodec,
 		AudioCodec:    probe.AudioCodec,
 	}
-	if probe.SupportsDirect {
+	if probe.SupportsDirect && !isRemoteMediaInput(fullPath) {
 		info.PreferredKind = "direct"
 	}
 	// Advertise the original file even when the conservative server policy
@@ -229,12 +232,19 @@ func streamVideo(c *gin.Context) {
 	} else {
 		fullPath, err = resolveStreamPathFromQuery(c)
 	}
+	if err == nil {
+		fullPath, err = resolveMediaInputFromLocator(fullPath)
+	}
 	if err != nil {
 		_, fullPath, _, err = resolveVideoStreamTarget(c)
 		if err != nil {
 			respondPlaybackError(c, err)
 			return
 		}
+	}
+	if isRemoteMediaInput(fullPath) {
+		serveRemoteVideo(c, fullPath)
+		return
 	}
 	serveVideoFile(c, fullPath)
 }
@@ -334,10 +344,8 @@ func resolveVideoStreamTarget(c *gin.Context) (*models.Video, string, int64, err
 	if err != nil {
 		return nil, "", 0, err
 	}
-	if _, err := os.Stat(fullPath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, "", 0, err
-		}
+	fullPath, err = resolveMediaInputFromLocator(fullPath)
+	if err != nil {
 		return nil, "", 0, err
 	}
 
@@ -452,6 +460,49 @@ func serveVideoFile(c *gin.Context, fullPath string) {
 	c.File(fullPath)
 }
 
+func serveRemoteVideo(c *gin.Context, mediaURL string) {
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, mediaURL, nil)
+	if err != nil {
+		respondLocalizedError(c, http.StatusBadRequest, "STRM 媒体地址无效", "Invalid STRM media URL")
+		return
+	}
+	for _, name := range []string{"Range", "If-Range", "If-Modified-Since", "If-None-Match", "User-Agent"} {
+		if value := c.GetHeader(name); value != "" {
+			req.Header.Set(name, value)
+		}
+	}
+	resp, err := remoteMediaHTTPClient.Do(req)
+	if err != nil {
+		logging.Error("proxy strm media error: %v", err)
+		respondLocalizedError(c, http.StatusBadGateway, "连接 STRM 媒体失败", "Failed to connect to STRM media")
+		return
+	}
+	defer resp.Body.Close()
+	for _, name := range []string{
+		"Accept-Ranges",
+		"Cache-Control",
+		"Content-Disposition",
+		"Content-Length",
+		"Content-Range",
+		"Content-Type",
+		"ETag",
+		"Last-Modified",
+	} {
+		for _, value := range resp.Header.Values(name) {
+			c.Writer.Header().Add(name, value)
+		}
+	}
+	if err := http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		logging.Error("disable strm proxy write deadline error: %v", err)
+	}
+	c.Status(resp.StatusCode)
+	if c.Request.Method != http.MethodHead {
+		if _, err := io.CopyBuffer(c.Writer, resp.Body, make([]byte, 256*1024)); err != nil && !errors.Is(err, context.Canceled) {
+			logging.Error("proxy strm media response error: %v", err)
+		}
+	}
+}
+
 func openVideoFile(c *gin.Context) {
 	if runtimeconfig.DisableDesktopIntegration() {
 		respondLocalizedError(c, http.StatusNotImplemented, "当前部署模式已禁用系统播放器", "Desktop file opening is disabled")
@@ -465,7 +516,12 @@ func openVideoFile(c *gin.Context) {
 	if err := ensureVideoFileExists(c, fullPath); err != nil {
 		return
 	}
-	if err := util.OpenFile(fullPath); err != nil {
+	source, err := util.ResolveMediaSource(fullPath)
+	if err != nil {
+		respondLocalizedError(c, http.StatusUnprocessableEntity, "读取 STRM 文件失败", "Failed to read STRM file")
+		return
+	}
+	if err := util.OpenFile(source.Input); err != nil {
 		logging.Error("open video file error: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "使用系统播放器打开文件失败", "Failed to open file with the system player")
 		return
@@ -488,11 +544,16 @@ func playVideoFile(c *gin.Context) {
 		return
 	}
 	videoID := resolvePlaybackVideoID(c.Request.Context(), req.VideoID, dirPath, fullPath)
+	source, err := util.ResolveMediaSource(fullPath)
+	if err != nil {
+		respondLocalizedError(c, http.StatusUnprocessableEntity, "读取 STRM 文件失败", "Failed to read STRM file")
+		return
+	}
 	dataDir := ""
 	if common.AppConfig != nil {
 		dataDir = filepath.Dir(common.AppConfig.DatabasePath)
 	}
-	if err := mpv.PlayVideo(fullPath, mpv.PlayOptions{
+	if err := mpv.PlayVideo(source.Input, mpv.PlayOptions{
 		DataDir:      dataDir,
 		VideoID:      videoID,
 		StartTimeSec: req.StartTimeSec,
@@ -1323,6 +1384,22 @@ func ensureVideoFileExists(c *gin.Context, fullPath string) error {
 		return err
 	}
 	return nil
+}
+
+func resolveMediaInputFromLocator(locatorPath string) (string, error) {
+	if _, err := os.Stat(locatorPath); err != nil {
+		return "", err
+	}
+	source, err := util.ResolveMediaSource(locatorPath)
+	if err != nil {
+		return "", err
+	}
+	return source.Input, nil
+}
+
+func isRemoteMediaInput(input string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(input))
+	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Hostname() != ""
 }
 
 func incrementPlayCountByPath(ctx context.Context, dirPath, fullPath string) {

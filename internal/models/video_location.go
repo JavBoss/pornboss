@@ -15,6 +15,7 @@ type VideoLocation struct {
 	IsDelete     bool      `json:"is_delete" gorm:"index;index:idx_video_location_jav_id_is_delete,priority:2;index:idx_video_location_visible_path,priority:2;index:idx_video_location_visible_filename,priority:2"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	StrmDigest   string    `json:"strm_digest,omitempty" gorm:"not null;default:''"`
 
 	Video        Video     `json:"-" gorm:"foreignKey:VideoID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	DirectoryRef Directory `json:"directory,omitempty" gorm:"foreignKey:DirectoryID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`

@@ -533,6 +533,42 @@ func TestHLSStreamHelpersPreserveLocationID(t *testing.T) {
 	}
 }
 
+func TestServeRemoteVideoForwardsRangeResponse(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Range") != "bytes=10-19" {
+			t.Errorf("origin Range = %q", r.Header.Get("Range"))
+		}
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Content-Range", "bytes 10-19/100")
+		w.Header().Set("Content-Type", "video/mp4")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte("0123456789"))
+	}))
+	defer origin.Close()
+
+	previousClient := remoteMediaHTTPClient
+	remoteMediaHTTPClient = origin.Client()
+	t.Cleanup(func() { remoteMediaHTTPClient = previousClient })
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/stream", func(c *gin.Context) { serveRemoteVideo(c, origin.URL+"/movie.mp4") })
+	req := httptest.NewRequest(http.MethodGet, "/stream", nil)
+	req.Header.Set("Range", "bytes=10-19")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusPartialContent {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusPartialContent)
+	}
+	if recorder.Header().Get("Content-Range") != "bytes 10-19/100" || recorder.Header().Get("Accept-Ranges") != "bytes" {
+		t.Fatalf("unexpected response headers: %#v", recorder.Header())
+	}
+	if recorder.Body.String() != "0123456789" {
+		t.Fatalf("body = %q", recorder.Body.String())
+	}
+}
+
 func TestPlaybackScreenshotName(t *testing.T) {
 	tests := []struct {
 		second float64

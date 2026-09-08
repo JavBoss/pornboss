@@ -36,6 +36,7 @@ type VideoMetadata struct {
 	FormatBitRate   int64
 	VideoBitRate    int64
 	AudioBitRate    int64
+	Size            int64
 }
 
 func (m *VideoMetadata) Fingerprint(size int64) string {
@@ -424,6 +425,7 @@ func parseFFprobeOutput(out []byte, path string) (*VideoMetadata, error) {
 		}
 	}
 	meta.FormatBitRate = parseInt64(res.Format.BitRate)
+	meta.Size = parseInt64(res.Format.Size)
 	meta.VideoBitRate = parseInt64(video.BitRate)
 	if audio != nil {
 		meta.AudioBitRate = parseInt64(audio.BitRate)

@@ -44,6 +44,12 @@ func VideoLocationsByDirectory(ctx context.Context, directoryID int64) ([]models
 
 // UpsertVideoLocation records or updates the on-disk location for a video.
 func UpsertVideoLocation(ctx context.Context, videoID, directoryID int64, relativePath string, modifiedAt time.Time) (*models.VideoLocation, error) {
+	return UpsertVideoLocationWithSTRMDigest(ctx, videoID, directoryID, relativePath, modifiedAt, "")
+}
+
+// UpsertVideoLocationWithSTRMDigest records a location and the digest of its
+// STRM target. Ordinary video locations use an empty digest.
+func UpsertVideoLocationWithSTRMDigest(ctx context.Context, videoID, directoryID int64, relativePath string, modifiedAt time.Time, strmDigest string) (*models.VideoLocation, error) {
 	relativePath = cleanRelativePathForDB(relativePath)
 	filename := filepath.Base(filepath.FromSlash(relativePath))
 	if videoID <= 0 || directoryID <= 0 || relativePath == "" {
@@ -56,6 +62,7 @@ func UpsertVideoLocation(ctx context.Context, videoID, directoryID int64, relati
 		RelativePath: relativePath,
 		Filename:     filename,
 		ModifiedAt:   modifiedAt,
+		StrmDigest:   strings.TrimSpace(strmDigest),
 		IsDelete:     false,
 	}
 	tx := common.DB.WithContext(ctx)
@@ -65,6 +72,7 @@ func UpsertVideoLocation(ctx context.Context, videoID, directoryID int64, relati
 			"video_id":    videoID,
 			"filename":    filename,
 			"modified_at": modifiedAt,
+			"strm_digest": strings.TrimSpace(strmDigest),
 			"is_delete":   false,
 			"updated_at":  gorm.Expr("CURRENT_TIMESTAMP"),
 		}),

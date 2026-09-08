@@ -45,6 +45,36 @@ func TestVideoLocationPathExistsIgnoresHiddenRows(t *testing.T) {
 	}
 }
 
+func TestUpsertVideoLocationPersistsAndClearsSTRMDigest(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	video := models.Video{Fingerprint: "strm-digest-video"}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+
+	loc, err := UpsertVideoLocationWithSTRMDigest(ctx, video.ID, dir.ID, "movie.strm", now, "v1:abc")
+	if err != nil {
+		t.Fatalf("upsert strm location: %v", err)
+	}
+	if loc.StrmDigest != "v1:abc" {
+		t.Fatalf("strm digest = %q", loc.StrmDigest)
+	}
+
+	loc, err = UpsertVideoLocation(ctx, video.ID, dir.ID, "movie.strm", now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("upsert ordinary location: %v", err)
+	}
+	if loc.StrmDigest != "" {
+		t.Fatalf("ordinary upsert should clear strm digest: %q", loc.StrmDigest)
+	}
+}
+
 func TestUpdateVideoLocationPathReusesHiddenPath(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()

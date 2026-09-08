@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,14 +30,19 @@ type Task struct {
 // VideoFetcher loads a video record by ID.
 type VideoFetcher func(ctx context.Context, id int64) (*models.Video, error)
 
-const maxScreenshotWorkers = 8
+const (
+	maxScreenshotWorkers          = 8
+	maxRemoteScreenshotConcurrent = 1
+	screenshotExecutionTimeout    = 2 * time.Minute
+)
 
 // ScreenshotManager coordinates asynchronous screenshot generation using the worker.
 type ScreenshotManager struct {
-	tasks      chan Task
-	workers    int
-	dataDir    string
-	fetchVideo VideoFetcher
+	tasks       chan Task
+	workers     int
+	dataDir     string
+	fetchVideo  VideoFetcher
+	remoteSlots chan struct{}
 }
 
 // NewScreenshotManager creates a manager when dataDir and fetchVideo are provided.
@@ -53,12 +59,17 @@ func NewScreenshotManager(dataDir string, fetchVideo VideoFetcher) *ScreenshotMa
 	if workers > maxScreenshotWorkers {
 		workers = maxScreenshotWorkers
 	}
-	logging.Info("screenshot manager initialized with %d workers", workers)
+	logging.Info(
+		"screenshot manager initialized with %d workers (remote concurrency=%d)",
+		workers,
+		maxRemoteScreenshotConcurrent,
+	)
 	return &ScreenshotManager{
-		tasks:      make(chan Task, 5000),
-		workers:    workers,
-		dataDir:    dataDir,
-		fetchVideo: fetchVideo,
+		tasks:       make(chan Task, 5000),
+		workers:     workers,
+		dataDir:     dataDir,
+		fetchVideo:  fetchVideo,
+		remoteSlots: make(chan struct{}, maxRemoteScreenshotConcurrent),
 	}
 }
 
@@ -229,24 +240,27 @@ func (m *ScreenshotManager) processTask(parent context.Context, task Task) error
 		return nil
 	}
 
-	videoPath, err := resolveVideoPath(video)
+	locatorPath, err := resolveVideoPath(video)
 	if err != nil {
 		return err
 	}
 
-	info, err := os.Stat(videoPath)
+	info, err := os.Stat(locatorPath)
 	if err != nil {
 		return err
 	}
-	if !sameVideoMeta(info.ModTime(), info.Size(), task) {
+	if !info.ModTime().Equal(task.ModifiedAt) {
 		return nil
 	}
+	if !util.IsSTRMPath(locatorPath) && info.Size() != task.Size {
+		return nil
+	}
+	source, err := util.ResolveMediaSource(locatorPath)
+	if err != nil {
+		return err
+	}
 
-	// Bound mpv execution time to avoid stuck processes.
-	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
-	defer cancel()
-
-	return m.capture(ctx, videoPath, float64(task.Second), screenshotPath)
+	return m.capture(parent, source.Input, float64(task.Second), screenshotPath)
 }
 
 func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, second float64, outputPath string) error {
@@ -259,6 +273,16 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 	if outputPath == "" {
 		return errors.New("output path is required")
 	}
+	releaseRemoteSlot, err := m.acquireRemoteSlot(ctx, videoPath)
+	if err != nil {
+		return err
+	}
+	defer releaseRemoteSlot()
+
+	// Start the media-tool timeout only after a remote task owns the slot. Time
+	// spent waiting behind another STRM screenshot must not consume its runtime.
+	executionCtx, cancel := context.WithTimeout(ctx, screenshotExecutionTimeout)
+	defer cancel()
 
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return fmt.Errorf("ensure screenshot dir: %w", err)
@@ -276,7 +300,7 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 		if err != nil {
 			return fmt.Errorf("resolve ffmpeg path: %w", err)
 		}
-		if err := runFFmpegScreenshot(ctx, ffmpegPath, videoPath, second, shotPath); err != nil {
+		if err := runFFmpegScreenshot(executionCtx, ffmpegPath, videoPath, second, shotPath); err != nil {
 			return err
 		}
 		return moveScreenshot(shotPath, outputPath)
@@ -288,7 +312,7 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 	}
 	args := buildMPVScreenshotArgs(second, tempDir, videoPath)
 
-	cmd := exec.CommandContext(ctx, mpvPath, args...)
+	cmd := exec.CommandContext(executionCtx, mpvPath, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		_ = os.Remove(shotPath)
@@ -312,6 +336,29 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 	}
 
 	return moveScreenshot(shotPath, outputPath)
+}
+
+func (m *ScreenshotManager) acquireRemoteSlot(ctx context.Context, videoPath string) (func(), error) {
+	if !isRemoteScreenshotInput(videoPath) {
+		return func() {}, nil
+	}
+	if m == nil || m.remoteSlots == nil {
+		return nil, errors.New("remote screenshot concurrency limiter is not configured")
+	}
+	select {
+	case m.remoteSlots <- struct{}{}:
+		return func() { <-m.remoteSlots }, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("wait for remote screenshot slot: %w", ctx.Err())
+	}
+}
+
+func isRemoteScreenshotInput(input string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(input))
+	if err != nil || parsed.Hostname() == "" {
+		return false
+	}
+	return strings.EqualFold(parsed.Scheme, "http") || strings.EqualFold(parsed.Scheme, "https")
 }
 
 func runFFmpegScreenshot(ctx context.Context, ffmpegPath string, videoPath string, second float64, outputPath string) error {
