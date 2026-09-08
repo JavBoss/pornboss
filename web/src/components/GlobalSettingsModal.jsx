@@ -47,7 +47,7 @@ const SETTINGS_SECTIONS = [
   {
     id: 'security',
     title: { zh: '安全', en: 'Security' },
-    summary: { zh: '密码与 API 令牌', en: 'Password and API tokens' },
+    summary: { zh: '账户与 API 令牌', en: 'Account and API tokens' },
   },
 ]
 
@@ -1214,7 +1214,7 @@ export default function GlobalSettingsModal({
     )
   }
 
-  const renderSecurityPanel = () => {
+  const renderAccountPanel = () => {
     const handleChangePassword = async (event) => {
       event.preventDefault()
       setPasswordError('')
@@ -1270,24 +1270,25 @@ export default function GlobalSettingsModal({
 
     return (
       <>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={openPasswordDialog}
-            className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-          >
-            {zh('修改密码', 'Change password')}
-          </button>
-          <button
-            type="button"
-            onClick={() => onLogout?.()}
-            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-          >
-            {zh('退出登录', 'Sign out')}
-          </button>
-        </div>
-
-        <ExtensionTokenSettings onToast={onToast} />
+        <section className="space-y-4 rounded-xl border border-zinc-200 bg-white p-4">
+          <h3 className="text-sm font-semibold text-zinc-900">{zh('账户', 'Account')}</h3>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={openPasswordDialog}
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              {zh('修改密码', 'Change password')}
+            </button>
+            <button
+              type="button"
+              onClick={() => onLogout?.()}
+              className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+            >
+              {zh('退出登录', 'Sign out')}
+            </button>
+          </div>
+        </section>
 
         {passwordDialogOpen ? (
           <AppModal
@@ -1483,7 +1484,12 @@ export default function GlobalSettingsModal({
           {currentSection === 'tools' && renderToolsPanel()}
           {currentSection === 'player' && renderPlayerPanel()}
           {currentSection === 'directories' && renderDirectoriesPanel()}
-          {currentSection === 'security' && renderSecurityPanel()}
+          {currentSection === 'security' && (
+            <>
+              {renderAccountPanel()}
+              <ExtensionTokenSettings onToast={onToast} />
+            </>
+          )}
         </section>
       </div>
     </AppModal>
