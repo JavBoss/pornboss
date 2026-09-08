@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JavBoss 助手",
-  "version": "0.10.7",
+  "version": "0.11.0",
   "minimum_chrome_version": "102",
   "description": "JavBoss 浏览器助手，增强 JavBoss 和其他网站的联动。",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp9ZCa5f9mRAFJANUR8ayl1pxMMt1uf04agHqDoHoLgJWhG8a8WFaaYMEwRNBIVtgbeajoIEbB+c8t3SibrnqWeDx72FNfwHFgTS0lSuwQxNg9NoUf4pUJnzmuiefIHMn0gD8fgUU6f3OPCSJmSBdnlnGI9bcRwaUs+ZvtyG6cQKkm8ryWdRb5X6CTmuaAxAelGTxQij4COTtR4x/+TyGQchCkiiHVoruu6xh4EWp9lSN5ipUJjol7OK2gMLXz5htCYyncRCVphtIKQxK9QccCPCXmov4R30uJJ9Ph1gHHGnpYde2a7aIS8ECznzJOb8C/rxczEEPgNJV5K+A2PFI0wIDAQAB",

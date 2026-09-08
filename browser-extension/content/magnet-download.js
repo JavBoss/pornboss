@@ -1,20 +1,17 @@
 (() => {
   const MESSAGE_TYPE = "JAVBOSS_DOWNLOAD_MAGNET";
-  const SETTINGS_KEY = "javboss:magnet-download-settings";
   const TOAST_ID = "javboss-magnet-download-toast";
   let enabled = false;
 
-  function applySettings(value) {
-    enabled = value?.enabled === true && Boolean(String(value.serverUrl || ""));
-  }
-
-  chrome.storage.local
-    .get(SETTINGS_KEY)
-    .then((stored) => applySettings(stored[SETTINGS_KEY]))
+  chrome.runtime
+    .sendMessage({ type: "JAVBOSS_MAGNET_SETTINGS" })
+    .then((settings) => {
+      enabled = settings?.enabled === true;
+    })
     .catch(() => {});
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === "local" && changes[SETTINGS_KEY]) {
-      applySettings(changes[SETTINGS_KEY].newValue);
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type === "JAVBOSS_MAGNET_SETTINGS_CHANGED") {
+      enabled = message.enabled === true;
     }
   });
 

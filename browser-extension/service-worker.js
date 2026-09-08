@@ -10,6 +10,19 @@ const JAVDB_ASSIST_KEY_PREFIX = "javboss:javdb-assist:";
 const LEGACY_RELAY_KEY_PREFIX = "javboss:javbus-relay:";
 const LEGACY_RELAY_SESSION_KEY_PREFIX = "javboss:javbus-session:";
 const MAGNET_DOWNLOAD_SETTINGS_KEY = "javboss:magnet-download-settings";
+const CONNECTION_SETTINGS_KEY = "javboss:connection-settings";
+const storageReady = chrome.storage.local
+  .setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
+  .then(
+    () => true,
+    () => false,
+  );
+
+async function requirePrivateStorage() {
+  if (!(await storageReady))
+    throw new Error("无法安全访问扩展凭据，请重新加载扩展");
+}
+
 const JAVDB_SETTINGS_KEY = "javboss:javdb-settings";
 
 function relayKey(tabId) {
@@ -73,6 +86,8 @@ function normalizedServerURL(value) {
     if (
       !["http:", "https:"].includes(parsed.protocol) ||
       !parsed.hostname ||
+      (parsed.protocol === "http:" &&
+        !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)) ||
       parsed.username ||
       parsed.password
     ) {
@@ -88,16 +103,23 @@ function normalizedServerURL(value) {
 }
 
 async function magnetDownloadSettings() {
-  const stored = await chrome.storage.local.get(MAGNET_DOWNLOAD_SETTINGS_KEY);
+  await requirePrivateStorage();
+  const stored = await chrome.storage.local.get([
+    MAGNET_DOWNLOAD_SETTINGS_KEY,
+    CONNECTION_SETTINGS_KEY,
+  ]);
   const settings = stored[MAGNET_DOWNLOAD_SETTINGS_KEY];
-  const serverUrl = normalizedServerURL(settings?.serverUrl);
+  const connection = stored[CONNECTION_SETTINGS_KEY];
+  const serverUrl = normalizedServerURL(connection?.serverUrl);
   return {
     enabled: settings?.enabled === true && Boolean(serverUrl),
     serverUrl,
+    apiToken: String(connection?.apiToken || "").trim(),
   };
 }
 
 async function javDBAutoRedirectEnabled() {
+  await requirePrivateStorage();
   const stored = await chrome.storage.local.get(JAVDB_SETTINGS_KEY);
   return stored[JAVDB_SETTINGS_KEY]?.autoRedirect !== false;
 }
@@ -112,12 +134,25 @@ async function submitMagnetDownload(message) {
       error: "请先在扩展中填写 JavBoss Server 地址并启用磁力下载",
     };
   }
+  const token = settings.apiToken;
+  if (!/^jbe_[A-Za-z0-9_-]{43}$/.test(token)) {
+    return {
+      ok: false,
+      error:
+        "请先在 JavBoss 全局设置的安全页面创建 API 令牌，并在扩展中保存 Token",
+    };
+  }
   const downloadUrl = new URL("extension/downloads", `${settings.serverUrl}/`)
     .href;
 
   const response = await fetch(downloadUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: "omit",
+    redirect: "error",
     body: JSON.stringify({ magnet_url: magnetUrl }),
   });
   let payload = {};
@@ -125,6 +160,13 @@ async function submitMagnetDownload(message) {
     payload = await response.json();
   } catch {
     // Error responses from an unavailable or stale server may not be JSON.
+  }
+  if (response.status === 401) {
+    return {
+      ok: false,
+      error:
+        "API 令牌无效或已过期，请在 JavBoss 中创建或重新生成 API 令牌，再更新扩展 Token",
+    };
   }
   if (!response.ok) {
     return {
@@ -399,6 +441,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     operation = clearJavDBAssist(message, sender);
   } else if (message?.type === "JAVBOSS_JAVDB_COMPLETE_ASSIST") {
     operation = completeJavDBAssist(message, sender);
+  } else if (message?.type === "JAVBOSS_MAGNET_SETTINGS") {
+    operation = magnetDownloadSettings().then(({ enabled }) => ({ enabled }));
   } else if (message?.type === "JAVBOSS_DOWNLOAD_MAGNET") {
     operation = submitMagnetDownload(message);
   } else {
@@ -435,5 +479,28 @@ chrome.runtime.onInstalled.addListener(() => {
         ),
       ),
     )
+    .catch(() => {});
+});
+
+// Content scripts receive only the enabled flag, never server credentials.
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (
+    areaName !== "local" ||
+    (!changes[MAGNET_DOWNLOAD_SETTINGS_KEY] &&
+      !changes[CONNECTION_SETTINGS_KEY])
+  )
+    return;
+  magnetDownloadSettings()
+    .then(async ({ enabled }) => {
+      const tabs = await chrome.tabs.query({});
+      await Promise.allSettled(
+        tabs.map((tab) =>
+          chrome.tabs.sendMessage(tab.id, {
+            type: "JAVBOSS_MAGNET_SETTINGS_CHANGED",
+            enabled,
+          }),
+        ),
+      );
+    })
     .catch(() => {});
 });

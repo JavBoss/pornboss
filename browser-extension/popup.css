@@ -24,7 +24,8 @@ h1 {
   font-size: 18px;
 }
 
-h1:not(:first-child) {
+.settings-section + .settings-section {
+  margin-top: 18px;
   padding-top: 18px;
   border-top: 1px solid #e1e5ec;
 }
@@ -106,7 +107,8 @@ button:disabled {
   opacity: 0.65;
 }
 
-#status {
+#status,
+#connection-status {
   min-height: 18px;
   margin: 10px 0 0;
   color: #16794d;
@@ -114,6 +116,36 @@ button:disabled {
   line-height: 1.5;
 }
 
-#status.error {
+#status.error,
+#connection-status.error {
   color: #c62828;
+}
+
+.token-field {
+  margin-top: 14px;
+}
+.connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+#test-connection {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #cbd2df;
+  color: #344054;
+  background: #fff;
+}
+
+#connection-status {
+  flex-basis: 100%;
+}
+
+#status:empty,
+#connection-status:empty {
+  display: none;
 }

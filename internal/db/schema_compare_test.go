@@ -33,6 +33,7 @@ func TestMigratedSchemaMatchesGormModels(t *testing.T) {
 	if err := reference.AutoMigrate(
 		&models.AuthAccount{},
 		&models.AuthSession{},
+		&models.ExtensionToken{},
 		&models.Directory{},
 		&models.JavStudio{},
 		&models.JavStudioAlias{},

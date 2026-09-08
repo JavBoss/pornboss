@@ -319,6 +319,12 @@ func sessionHash(key [sha256.Size]byte) string {
 
 func (a *AuthService) requireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.GetHeader("Authorization") != "" || isJavBossExtensionOrigin(c) {
+			if authenticateExtensionRequest(c) {
+				c.Next()
+			}
+			return
+		}
 		token := requestSessionToken(c, a.cookieName)
 		if !requestOriginAllowed(c.Request) {
 			abortLocalizedError(c, http.StatusForbidden, "请求来源无效", "Invalid request origin")
