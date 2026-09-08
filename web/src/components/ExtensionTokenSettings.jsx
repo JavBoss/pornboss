@@ -92,15 +92,15 @@ export default function ExtensionTokenSettings({ onToast }) {
   }
 
   return (
-    <section className="mt-6 space-y-4 rounded-xl border border-zinc-200 bg-white p-4">
+    <section className="space-y-4 rounded-xl border border-zinc-200 bg-white p-4">
       <div>
         <h3 className="text-sm font-semibold text-zinc-900">
           {zh('浏览器扩展 API 令牌', 'Browser extension API tokens')}
         </h3>
         <p className="mt-1 text-xs leading-5 text-zinc-500">
           {zh(
-            'Token 用于浏览器扩展提交磁力下载，创建后可随时查看和复制。',
-            'Tokens let the browser extension submit magnet downloads. View and copy them here at any time.'
+            'API 令牌用于浏览器扩展访问 JavBoss 的凭证',
+            'API tokens serve as credentials for browser extensions to access JavBoss.'
           )}
         </p>
       </div>
@@ -273,7 +273,7 @@ export default function ExtensionTokenSettings({ onToast }) {
               {busy
                 ? zh('处理中…', 'Saving...')
                 : pending.action === 'create'
-                  ? zh('新建 API 令牌', 'New API token')
+                  ? zh('新建', 'Create')
                   : zh('确认', 'Confirm')}
             </button>
           </div>

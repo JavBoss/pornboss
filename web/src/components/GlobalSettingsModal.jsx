@@ -1270,20 +1270,20 @@ export default function GlobalSettingsModal({
 
     return (
       <>
-        <section className="space-y-4 rounded-xl border border-zinc-200 bg-white p-4">
-          <h3 className="text-sm font-semibold text-zinc-900">{zh('账户', 'Account')}</h3>
-          <div className="flex flex-wrap gap-3">
+        <section className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-4">
+          <h3 className="shrink-0 text-sm font-semibold text-zinc-900">{zh('账户', 'Account')}</h3>
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={openPasswordDialog}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              className="whitespace-nowrap rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
             >
               {zh('修改密码', 'Change password')}
             </button>
             <button
               type="button"
               onClick={() => onLogout?.()}
-              className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+              className="whitespace-nowrap rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
             >
               {zh('退出登录', 'Sign out')}
             </button>
@@ -1485,10 +1485,10 @@ export default function GlobalSettingsModal({
           {currentSection === 'player' && renderPlayerPanel()}
           {currentSection === 'directories' && renderDirectoriesPanel()}
           {currentSection === 'security' && (
-            <>
-              {renderAccountPanel()}
+            <div className="space-y-6">
               <ExtensionTokenSettings onToast={onToast} />
-            </>
+              {renderAccountPanel()}
+            </div>
           )}
         </section>
       </div>
