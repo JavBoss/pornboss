@@ -73,6 +73,8 @@
     serverInput.disabled = tokenInput.disabled = true;
     testButton.textContent = "测试中…";
     showConnectionStatus("");
+    let timeoutId;
+    let timedOut = false;
     try {
       if (!(await storageReady))
         throw new Error("无法安全访问扩展凭据，请重新加载扩展");
@@ -80,6 +82,11 @@
         origins: [hostPermission(serverUrl)],
       });
       if (!granted) throw new Error("需要允许访问该 Server 才能测试连接");
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, 10000);
       const response = await fetch(
         new URL("extension/status", `${serverUrl}/`).href,
         {
@@ -90,7 +97,7 @@
           credentials: "omit",
           redirect: "error",
           cache: "no-store",
-          signal: AbortSignal.timeout(10000),
+          signal: controller.signal,
         },
       );
       if (response.status === 401)
@@ -117,7 +124,7 @@
       showConnectionStatus("连接成功，API 令牌有效");
     } catch (error) {
       showConnectionStatus(
-        error?.name === "TimeoutError"
+        timedOut || error?.name === "TimeoutError"
           ? "连接超时，请检查 Server 地址和网络"
           : error instanceof TypeError
             ? "无法连接服务器，请检查地址、网络及 HTTPS 证书"
@@ -125,6 +132,7 @@
         true,
       );
     } finally {
+      clearTimeout(timeoutId);
       testButton.disabled = false;
       serverInput.disabled = tokenInput.disabled = false;
       testButton.textContent = "测试连接";

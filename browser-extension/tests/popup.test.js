@@ -17,6 +17,7 @@ function createHarness({
   fetchResponse = { status: 200, body: { authenticated: true } },
   fetchError = null,
   fetchImpl = null,
+  abortSignal = AbortSignal,
 } = {}) {
   const elements = new Map();
   for (const id of [
@@ -44,6 +45,8 @@ function createHarness({
   const storedValues = [];
   const permissionRequests = [];
   const fetchCalls = [];
+  const timers = new Map();
+  let nextTimerId = 0;
   const chrome = {
     permissions: {
       async request(request) {
@@ -103,7 +106,16 @@ function createHarness({
     document,
     URL,
     fetch,
-    AbortSignal,
+    AbortSignal: abortSignal,
+    AbortController,
+    setTimeout(callback, delay) {
+      const id = ++nextTimerId;
+      timers.set(id, { callback, delay });
+      return id;
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
     TypeError,
   });
   return {
@@ -111,6 +123,7 @@ function createHarness({
     permissionRequests,
     storedValues,
     fetchCalls,
+    timers,
   };
 }
 
@@ -238,6 +251,71 @@ test("connection test checks current inputs without enabling downloads or writin
     "连接成功，API 令牌有效",
   );
   assert.equal(harness.elements.get("test-connection").disabled, false);
+  assert.equal(harness.timers.size, 0);
+});
+
+test("connection test works without AbortSignal.timeout on Chrome 102", async () => {
+  const harness = createHarness({ abortSignal: {} });
+  await new Promise((resolve) => setImmediate(resolve));
+  harness.elements.get("server-url").value = "https://boss.example";
+  harness.elements.get("server-token").value = TEST_TOKEN;
+  await harness.elements.get("test-connection").listeners.click();
+  assert.equal(harness.fetchCalls.length, 1);
+  assert.equal(
+    harness.elements.get("connection-status").textContent,
+    "连接成功，API 令牌有效",
+  );
+  assert.equal(harness.fetchCalls[0].options.signal.aborted, false);
+  assert.equal(harness.timers.size, 0);
+});
+
+test("connection timeout aborts stalled requests and response bodies and restores controls", async () => {
+  for (const stage of ["request", "body"]) {
+    const harness = createHarness({
+      abortSignal: {},
+      fetchImpl: (url, { signal }) => {
+        const waitForAbort = () =>
+          new Promise((resolve, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason), {
+              once: true,
+            });
+          });
+        if (stage === "request") return waitForAbort();
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: waitForAbort,
+        };
+      },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    harness.elements.get("server-url").value = "https://boss.example";
+    harness.elements.get("server-token").value = TEST_TOKEN;
+    const pending = harness.elements.get("test-connection").listeners.click();
+    await new Promise((resolve) => setImmediate(resolve));
+    for (const id of ["test-connection", "server-url", "server-token"]) {
+      assert.equal(harness.elements.get(id).disabled, true);
+    }
+    assert.equal(harness.timers.size, 1);
+    const timer = [...harness.timers.values()][0];
+    assert.equal(timer.delay, 10000);
+    timer.callback();
+    await pending;
+    assert.equal(harness.fetchCalls[0].options.signal.aborted, true);
+    assert.equal(
+      harness.elements.get("connection-status").textContent,
+      "连接超时，请检查 Server 地址和网络",
+    );
+    for (const id of ["test-connection", "server-url", "server-token"]) {
+      assert.equal(harness.elements.get(id).disabled, false);
+    }
+    assert.equal(
+      harness.elements.get("test-connection").textContent,
+      "测试连接",
+    );
+    assert.equal(harness.timers.size, 0);
+  }
 });
 
 test("connection test rejects invalid input and permission or storage failures before fetching", async () => {
@@ -258,6 +336,7 @@ test("connection test rejects invalid input and permission or storage failures b
     harness.elements.get("server-token").value = scenario.token;
     await harness.elements.get("test-connection").listeners.click();
     assert.equal(harness.fetchCalls.length, 0);
+    assert.equal(harness.timers.size, 0);
     assert.equal(harness.storedValues.length, 0);
     assert.notEqual(harness.elements.get("connection-status").textContent, "");
     assert.equal(harness.elements.get("test-connection").disabled, false);
@@ -303,6 +382,7 @@ test("connection test reports auth, HTTP, response, timeout and network failures
       assert.equal(harness.elements.get(id).disabled, false);
     }
     assert.equal(harness.storedValues.length, 0);
+    assert.equal(harness.timers.size, 0);
   }
 });
 
