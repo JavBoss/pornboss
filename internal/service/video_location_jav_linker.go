@@ -60,6 +60,8 @@ func (b *javLinkBatch) Enqueue(locationID int64) {
 		return
 	}
 	b.seen[locationID] = struct{}{}
+	progress, _ := b.ctx.Value(directoryScanProgressKey{}).(*directoryScanProgress)
+	progress.record(false)
 	b.mu.Unlock()
 
 	select {
@@ -93,6 +95,18 @@ func (b *javLinkBatch) worker() {
 				return
 			}
 			logging.Error("video location jav link failed location=%d err=%v", locationID, err)
+		}
+		if progress, _ := b.ctx.Value(directoryScanProgressKey{}).(*directoryScanProgress); progress != nil {
+			// Read the persisted result: skipped/unmatched work is not a successful scrape,
+			// while files whose metadata was already linked still count in this scan.
+			v, err := db.GetVideoForJavScan(b.ctx, locationID)
+			if err != nil {
+				if b.ctx.Err() == nil {
+					logging.Error("read directory scrape progress failed location=%d err=%v", locationID, err)
+				}
+			} else if v != nil && v.JavID != nil {
+				progress.record(true)
+			}
 		}
 	}
 }

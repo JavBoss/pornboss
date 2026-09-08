@@ -20,6 +20,7 @@ import (
 
 const maxDirectoryAutoScanIntervalMinutes = 525600
 
+// listDirectories reports current-scan counts while scanning, otherwise directory totals.
 func listDirectories(c *gin.Context) {
 	dirs, err := dbpkg.ListDirectories(c.Request.Context())
 	if err != nil {
@@ -34,7 +35,11 @@ func listDirectories(c *gin.Context) {
 	}
 	response := make([]directoryResponse, len(dirs))
 	for i := range dirs {
-		workStatus := service.DirectoryWorkStatus(dirs[i].ID)
+		workStatus, progress := service.DirectoryWorkSnapshot(dirs[i].ID)
+		if progress != nil {
+			dirs[i].ScannedVideoCount = progress.ScannedVideoCount
+			dirs[i].ScrapedVideoCount = progress.ScrapedVideoCount
+		}
 		response[i] = directoryResponse{
 			Directory:  dirs[i],
 			IsScanning: workStatus == service.DirectoryWorkScanning,

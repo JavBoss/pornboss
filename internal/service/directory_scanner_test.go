@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -12,6 +13,113 @@ import (
 	"javboss/internal/db"
 	"javboss/internal/models"
 )
+
+func TestDirectoryScanProgressCountsCurrentFilesAndSuccessfulLinks(t *testing.T) {
+	resetDirectoryScanSessions(t)
+	gdb, err := db.Open(filepath.Join(t.TempDir(), "scan-progress.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousDB := common.DB
+	common.DB = gdb
+	t.Cleanup(func() {
+		common.DB = previousDB
+		if sqlDB, err := gdb.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	dir := models.Directory{Path: t.TempDir()}
+	metadata := models.Jav{Code: "ABC-123"}
+	video := models.Video{Fingerprint: "scan-progress", Size: 1, DurationSec: 1800}
+	for _, row := range []any{&dir, &metadata, &video} {
+		if err := gdb.Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, fixture := range []struct {
+		name    string
+		linked  bool
+		present bool
+	}{
+		{"already-linked.mp4", true, true},
+		{"ABC-123.mp4", false, true},
+		{"clip.mp4", false, true},
+		{"old-missing.mp4", true, false},
+	} {
+		loc := models.VideoLocation{VideoID: video.ID, DirectoryID: dir.ID, RelativePath: fixture.name, Filename: fixture.name}
+		if fixture.linked {
+			loc.JavID = &metadata.ID
+		}
+		if fixture.present {
+			path := filepath.Join(dir.Path, fixture.name)
+			if err := os.WriteFile(path, []byte{0}, 0600); err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			loc.ModifiedAt = info.ModTime().UTC()
+		}
+		if err := gdb.Create(&loc).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	assertProgress := func(scanned, scraped int64) {
+		t.Helper()
+		status, progress := DirectoryWorkSnapshot(dir.ID)
+		if status != DirectoryWorkScanning || progress == nil ||
+			progress.ScannedVideoCount != scanned || progress.ScrapedVideoCount != scraped {
+			t.Fatalf("status=%s progress=%+v, want scanning with %d/%d", status, progress, scanned, scraped)
+		}
+	}
+	scanCtx, finish, err := acquireDirectoryScanSession(t.Context(), dir.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer finish()
+	assertProgress(0, 0)
+	// Delay workers so the file-scan and metadata stages can be checked independently.
+	batch := &javLinkBatch{ctx: scanCtx, tasks: make(chan int64, 10), seen: make(map[int64]struct{})}
+	state, err := loadDirectorySyncState(scanCtx, dir.ID, batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := walkAndReconcileVideoFiles(scanCtx, dir, state, &Summary{}); err != nil {
+		t.Fatal(err)
+	}
+	assertProgress(3, 0)
+	for id := range batch.seen {
+		batch.Enqueue(id) // Duplicate queue entries must not inflate either counter.
+	}
+	batch.workers.Add(1)
+	go batch.worker()
+	batch.Wait()
+	assertProgress(3, 2)
+	if status, progress := DirectoryWorkSnapshot(dir.ID + 1); status != DirectoryWorkIdle || progress != nil {
+		t.Fatalf("another directory inherited scan progress: %s %+v", status, progress)
+	}
+	finish()
+	if status, progress := DirectoryWorkSnapshot(dir.ID); status != DirectoryWorkIdle || progress != nil {
+		t.Fatalf("finished scan still exposes progress: %s %+v", status, progress)
+	}
+	_, nextFinish, err := acquireDirectoryScanSession(t.Context(), dir.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nextFinish()
+	assertProgress(0, 0)
+	nextFinish()
+	release, err := CancelAndReserveDirectoryScan(t.Context(), dir.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	if status, progress := DirectoryWorkSnapshot(dir.ID); status != DirectoryWorkIdle || progress != nil {
+		t.Fatalf("reservation exposes scan progress: %s %+v", status, progress)
+	}
+}
 
 func TestCancelAndReserveDirectoryScanCancelsActiveSession(t *testing.T) {
 	resetDirectoryScanSessions(t)

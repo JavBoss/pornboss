@@ -21,9 +21,36 @@ var (
 
 // directoryScanSession 表示一个正在运行或被目录更新操作暂时占用的扫描会话。
 type directoryScanSession struct {
-	cancel  context.CancelFunc
-	done    chan struct{}
-	reserve bool
+	cancel   context.CancelFunc
+	done     chan struct{}
+	reserve  bool
+	progress *directoryScanProgress
+}
+
+// DirectoryScanProgress counts reconciled files and successfully linked files in one scan.
+type DirectoryScanProgress struct {
+	ScannedVideoCount int64
+	ScrapedVideoCount int64
+}
+
+type directoryScanProgress struct {
+	mu sync.Mutex
+	DirectoryScanProgress
+}
+
+type directoryScanProgressKey struct{}
+
+func (p *directoryScanProgress) record(scraped bool) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if scraped {
+		p.ScrapedVideoCount++
+	} else {
+		p.ScannedVideoCount++
+	}
 }
 
 const (
@@ -49,13 +76,25 @@ func IsDirectoryScanning(id int64) bool {
 
 // DirectoryWorkStatus 返回目录当前的处理任务、扫描任务或空闲状态。
 func DirectoryWorkStatus(id int64) string {
+	status, _ := DirectoryWorkSnapshot(id)
+	return status
+}
+
+// DirectoryWorkSnapshot returns a consistent scan status and its current counters.
+// Processing tasks and temporary reservations do not expose scan counters.
+func DirectoryWorkSnapshot(id int64) (string, *DirectoryScanProgress) {
 	if status := activeDirectoryProcessingStatus(id); status != "" {
-		return status
+		return status, nil
 	}
-	if IsDirectoryScanning(id) {
-		return DirectoryWorkScanning
+	dirScanMu.Lock()
+	defer dirScanMu.Unlock()
+	if session := dirScanActive[id]; session != nil && !session.reserve {
+		session.progress.mu.Lock()
+		progress := session.progress.DirectoryScanProgress
+		session.progress.mu.Unlock()
+		return DirectoryWorkScanning, &progress
 	}
-	return DirectoryWorkIdle
+	return DirectoryWorkIdle, nil
 }
 
 // acquireDirectoryScanSession 获取单目录扫描会话，保证同一目录同一时间只运行一个扫描任务。
@@ -74,9 +113,12 @@ func acquireDirectoryScanSession(ctx context.Context, id int64) (context.Context
 	}
 
 	scanCtx, cancel := context.WithCancel(ctx)
+	progress := &directoryScanProgress{}
+	scanCtx = context.WithValue(scanCtx, directoryScanProgressKey{}, progress)
 	session := &directoryScanSession{
-		cancel: cancel,
-		done:   make(chan struct{}),
+		cancel:   cancel,
+		done:     make(chan struct{}),
+		progress: progress,
 	}
 	dirScanActive[id] = session
 
