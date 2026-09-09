@@ -21,14 +21,16 @@ var (
 
 // directoryScanSession 表示一个正在运行或被目录更新操作暂时占用的扫描会话。
 type directoryScanSession struct {
-	cancel   context.CancelFunc
-	done     chan struct{}
-	reserve  bool
-	progress *directoryScanProgress
+	cancel    context.CancelFunc
+	done      chan struct{}
+	reserve   bool
+	startedAt time.Time
+	progress  *directoryScanProgress
 }
 
-// DirectoryScanProgress counts visited files, reconciled videos and linked videos in one scan.
+// DirectoryScanProgress reports elapsed time and file/video counts for one scan.
 type DirectoryScanProgress struct {
+	ElapsedMS         int64
 	ScannedFileCount  int64
 	ScannedVideoCount int64
 	ScrapedVideoCount int64
@@ -102,6 +104,7 @@ func DirectoryWorkSnapshot(id int64) (string, *DirectoryScanProgress) {
 		session.progress.mu.Lock()
 		progress := session.progress.DirectoryScanProgress
 		session.progress.mu.Unlock()
+		progress.ElapsedMS = time.Since(session.startedAt).Milliseconds()
 		return DirectoryWorkScanning, &progress
 	}
 	return DirectoryWorkIdle, nil
@@ -126,9 +129,10 @@ func acquireDirectoryScanSession(ctx context.Context, id int64) (context.Context
 	progress := &directoryScanProgress{}
 	scanCtx = context.WithValue(scanCtx, directoryScanProgressKey{}, progress)
 	session := &directoryScanSession{
-		cancel:   cancel,
-		done:     make(chan struct{}),
-		progress: progress,
+		cancel:    cancel,
+		done:      make(chan struct{}),
+		startedAt: time.Now(),
+		progress:  progress,
 	}
 	dirScanActive[id] = session
 

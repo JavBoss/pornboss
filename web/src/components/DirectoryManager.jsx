@@ -100,6 +100,14 @@ const formatScanDuration = (summary) => {
   return zh(`${hours} 小时 ${minutes} 分`, `${hours} hr ${minutes} min`)
 }
 
+const formatScanElapsedTime = (elapsedMS) => {
+  const value = Number(elapsedMS)
+  const seconds = Number.isFinite(value) ? Math.max(0, Math.floor(value / 1000)) : 0
+  return [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':')
+}
+
 const directoryWorkStatus = (directory) =>
   directory?.work_status || (directory?.is_scanning ? 'scanning' : 'idle')
 
@@ -628,6 +636,14 @@ export default function DirectoryManager({
                       >
                         <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${statusDisplay.dot}`} />
                         {statusDisplay.label}
+                      </span>
+                    )}
+                    {!isEditing && status === 'scanning' && (
+                      <span className="whitespace-nowrap text-xs text-zinc-500">
+                        {zh('已运行时间：', 'Elapsed time: ')}
+                        <strong className="font-semibold tabular-nums text-zinc-800">
+                          {formatScanElapsedTime(d.scan_elapsed_ms)}
+                        </strong>
                       </span>
                     )}
                     {d.missing && (

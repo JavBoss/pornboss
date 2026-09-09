@@ -132,6 +132,41 @@ func TestDirectoryScanProgressCountsCurrentFilesAndSuccessfulLinks(t *testing.T)
 	}
 }
 
+func TestDirectoryScanElapsedTimeResetsBetweenSessions(t *testing.T) {
+	resetDirectoryScanSessions(t)
+	_, finish, err := acquireDirectoryScanSession(t.Context(), 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer finish()
+	// Simulate an older scan without sleeping or depending on the wall clock's precision.
+	startedAt := time.Now().Add(-65 * time.Second)
+	dirScanMu.Lock()
+	dirScanActive[42].startedAt = startedAt
+	dirScanMu.Unlock()
+	minimumElapsed := time.Since(startedAt).Milliseconds()
+	status, progress := DirectoryWorkSnapshot(42)
+	if status != DirectoryWorkScanning || progress == nil ||
+		progress.ElapsedMS < minimumElapsed || progress.ElapsedMS > time.Since(startedAt).Milliseconds() {
+		t.Fatalf("unexpected elapsed scan progress: %s %+v", status, progress)
+	}
+	finish()
+	if status, progress := DirectoryWorkSnapshot(42); status != DirectoryWorkIdle || progress != nil {
+		t.Fatalf("finished scan still reports elapsed time: %s %+v", status, progress)
+	}
+	restartedAt := time.Now()
+	_, nextFinish, err := acquireDirectoryScanSession(t.Context(), 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nextFinish()
+	status, progress = DirectoryWorkSnapshot(42)
+	if status != DirectoryWorkScanning || progress == nil ||
+		progress.ElapsedMS < 0 || progress.ElapsedMS > time.Since(restartedAt).Milliseconds() {
+		t.Fatalf("new scan did not reset elapsed time: %s %+v", status, progress)
+	}
+}
+
 func TestCancelAndReserveDirectoryScanCancelsActiveSession(t *testing.T) {
 	resetDirectoryScanSessions(t)
 
