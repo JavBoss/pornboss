@@ -20,6 +20,7 @@ import (
 
 const maxDirectoryAutoScanIntervalMinutes = 525600
 
+// listDirectories reports current-scan counts while scanning, otherwise directory totals.
 func listDirectories(c *gin.Context) {
 	dirs, err := dbpkg.ListDirectories(c.Request.Context())
 	if err != nil {
@@ -29,16 +30,26 @@ func listDirectories(c *gin.Context) {
 	}
 	type directoryResponse struct {
 		models.Directory
-		IsScanning bool   `json:"is_scanning"`
-		WorkStatus string `json:"work_status"`
+		IsScanning       bool   `json:"is_scanning"`
+		WorkStatus       string `json:"work_status"`
+		ScannedFileCount int64  `json:"scanned_file_count"` // Current scan only; zero when idle.
+		ScanElapsedMS    int64  `json:"scan_elapsed_ms"`    // Includes file scanning and JAV linking; zero when idle.
 	}
 	response := make([]directoryResponse, len(dirs))
 	for i := range dirs {
-		workStatus := service.DirectoryWorkStatus(dirs[i].ID)
+		workStatus, progress := service.DirectoryWorkSnapshot(dirs[i].ID)
+		if progress != nil {
+			dirs[i].ScannedVideoCount = progress.ScannedVideoCount
+			dirs[i].ScrapedVideoCount = progress.ScrapedVideoCount
+		}
 		response[i] = directoryResponse{
 			Directory:  dirs[i],
 			IsScanning: workStatus == service.DirectoryWorkScanning,
 			WorkStatus: workStatus,
+		}
+		if progress != nil {
+			response[i].ScannedFileCount = progress.ScannedFileCount
+			response[i].ScanElapsedMS = progress.ElapsedMS
 		}
 	}
 	c.JSON(http.StatusOK, response)

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -12,6 +13,168 @@ import (
 	"javboss/internal/db"
 	"javboss/internal/models"
 )
+
+func TestDirectoryScanProgressCountsCurrentFilesAndSuccessfulLinks(t *testing.T) {
+	resetDirectoryScanSessions(t)
+	gdb, err := db.Open(filepath.Join(t.TempDir(), "scan-progress.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousDB := common.DB
+	common.DB = gdb
+	t.Cleanup(func() {
+		common.DB = previousDB
+		if sqlDB, err := gdb.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	dir := models.Directory{Path: t.TempDir()}
+	metadata := models.Jav{Code: "ABC-123"}
+	video := models.Video{Fingerprint: "scan-progress", Size: 1, DurationSec: 1800}
+	for _, row := range []any{&dir, &metadata, &video} {
+		if err := gdb.Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, fixture := range []struct {
+		name    string
+		linked  bool
+		present bool
+	}{
+		{"already-linked.mp4", true, true},
+		{"ABC-123.mp4", false, true},
+		{"clip.mp4", false, true},
+		{"old-missing.mp4", true, false},
+	} {
+		loc := models.VideoLocation{VideoID: video.ID, DirectoryID: dir.ID, RelativePath: fixture.name, Filename: fixture.name}
+		if fixture.linked {
+			loc.JavID = &metadata.ID
+		}
+		if fixture.present {
+			path := filepath.Join(dir.Path, fixture.name)
+			if err := os.WriteFile(path, []byte{0}, 0600); err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			loc.ModifiedAt = info.ModTime().UTC()
+		}
+		if err := gdb.Create(&loc).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Non-video files count too, including nested files; folders themselves do not.
+	if err := os.Mkdir(filepath.Join(dir.Path, "extras"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"cover.jpg", filepath.Join("extras", "info.nfo")} {
+		if err := os.WriteFile(filepath.Join(dir.Path, name), []byte{0}, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	assertProgress := func(files, scanned, scraped int64) {
+		t.Helper()
+		status, progress := DirectoryWorkSnapshot(dir.ID)
+		if status != DirectoryWorkScanning || progress == nil ||
+			progress.ScannedFileCount != files ||
+			progress.ScannedVideoCount != scanned || progress.ScrapedVideoCount != scraped {
+			t.Fatalf("status=%s progress=%+v, want scanning with %d files and %d/%d videos", status, progress, files, scanned, scraped)
+		}
+	}
+	scanCtx, finish, err := acquireDirectoryScanSession(t.Context(), dir.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer finish()
+	assertProgress(0, 0, 0)
+	// A tool job keeps ownership during its follow-up scan. That marker must not
+	// mask the scan session's live counters or allow another tool job to start.
+	setDirectoryProcessingStatus(dir.ID, DirectoryWorkScanning)
+	defer setDirectoryProcessingStatus(dir.ID, "")
+	if err := StartDirectoryProcessing(t.Context(), dir, DirectoryProcessSidecar, DirectoryProcessLayoutPrefix); !errors.Is(err, ErrDirectoryWorkInProgress) {
+		t.Fatalf("follow-up scan should block another tool job: %v", err)
+	}
+	// Delay workers so the file-scan and metadata stages can be checked independently.
+	batch := &javLinkBatch{ctx: scanCtx, tasks: make(chan int64, 10), seen: make(map[int64]struct{})}
+	state, err := loadDirectorySyncState(scanCtx, dir.ID, batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := walkAndReconcileVideoFiles(scanCtx, dir, state, &Summary{}); err != nil {
+		t.Fatal(err)
+	}
+	assertProgress(5, 3, 0)
+	for id := range batch.seen {
+		batch.Enqueue(id) // Duplicate queue entries must not inflate either counter.
+	}
+	batch.workers.Add(1)
+	go batch.worker()
+	batch.Wait()
+	assertProgress(5, 3, 2)
+	if status, progress := DirectoryWorkSnapshot(dir.ID + 1); status != DirectoryWorkIdle || progress != nil {
+		t.Fatalf("another directory inherited scan progress: %s %+v", status, progress)
+	}
+	finish()
+	assertProgress(0, 0, 0) // The tool still owns the directory until its cleanup runs.
+	setDirectoryProcessingStatus(dir.ID, "")
+	if status, progress := DirectoryWorkSnapshot(dir.ID); status != DirectoryWorkIdle || progress != nil {
+		t.Fatalf("finished scan still exposes progress: %s %+v", status, progress)
+	}
+	_, nextFinish, err := acquireDirectoryScanSession(t.Context(), dir.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nextFinish()
+	assertProgress(0, 0, 0)
+	nextFinish()
+	release, err := CancelAndReserveDirectoryScan(t.Context(), dir.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	if status, progress := DirectoryWorkSnapshot(dir.ID); status != DirectoryWorkIdle || progress != nil {
+		t.Fatalf("reservation exposes scan progress: %s %+v", status, progress)
+	}
+}
+
+func TestDirectoryScanElapsedTimeResetsBetweenSessions(t *testing.T) {
+	resetDirectoryScanSessions(t)
+	_, finish, err := acquireDirectoryScanSession(t.Context(), 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer finish()
+	// Simulate an older scan without sleeping or depending on the wall clock's precision.
+	startedAt := time.Now().Add(-65 * time.Second)
+	dirScanMu.Lock()
+	dirScanActive[42].startedAt = startedAt
+	dirScanMu.Unlock()
+	minimumElapsed := time.Since(startedAt).Milliseconds()
+	status, progress := DirectoryWorkSnapshot(42)
+	if status != DirectoryWorkScanning || progress == nil ||
+		progress.ElapsedMS < minimumElapsed || progress.ElapsedMS > time.Since(startedAt).Milliseconds() {
+		t.Fatalf("unexpected elapsed scan progress: %s %+v", status, progress)
+	}
+	finish()
+	if status, progress := DirectoryWorkSnapshot(42); status != DirectoryWorkIdle || progress != nil {
+		t.Fatalf("finished scan still reports elapsed time: %s %+v", status, progress)
+	}
+	restartedAt := time.Now()
+	_, nextFinish, err := acquireDirectoryScanSession(t.Context(), 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nextFinish()
+	status, progress = DirectoryWorkSnapshot(42)
+	if status != DirectoryWorkScanning || progress == nil ||
+		progress.ElapsedMS < 0 || progress.ElapsedMS > time.Since(restartedAt).Milliseconds() {
+		t.Fatalf("new scan did not reset elapsed time: %s %+v", status, progress)
+	}
+}
 
 func TestCancelAndReserveDirectoryScanCancelsActiveSession(t *testing.T) {
 	resetDirectoryScanSessions(t)

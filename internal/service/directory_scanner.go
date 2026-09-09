@@ -21,9 +21,48 @@ var (
 
 // directoryScanSession 表示一个正在运行或被目录更新操作暂时占用的扫描会话。
 type directoryScanSession struct {
-	cancel  context.CancelFunc
-	done    chan struct{}
-	reserve bool
+	cancel    context.CancelFunc
+	done      chan struct{}
+	reserve   bool
+	startedAt time.Time
+	progress  *directoryScanProgress
+}
+
+// DirectoryScanProgress reports elapsed time and file/video counts for one scan.
+type DirectoryScanProgress struct {
+	ElapsedMS         int64
+	ScannedFileCount  int64
+	ScannedVideoCount int64
+	ScrapedVideoCount int64
+}
+
+type directoryScanProgress struct {
+	mu sync.Mutex
+	DirectoryScanProgress
+}
+
+type directoryScanProgressKey struct{}
+
+func (p *directoryScanProgress) recordFile() {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.ScannedFileCount++
+}
+
+func (p *directoryScanProgress) record(scraped bool) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if scraped {
+		p.ScrapedVideoCount++
+	} else {
+		p.ScannedVideoCount++
+	}
 }
 
 const (
@@ -32,7 +71,6 @@ const (
 	DirectoryWorkOrganizing            = "organizing"
 	DirectoryWorkGeneratingSidecar     = "generating_sidecar"
 	DirectoryWorkOrganizingWithSidecar = "organizing_with_sidecar"
-	DirectoryWorkRescanning            = "rescanning"
 )
 
 // IsDirectoryScanning 判断指定目录是否正在执行文件扫描；目录更新使用的临时占用不算扫描中。
@@ -49,13 +87,31 @@ func IsDirectoryScanning(id int64) bool {
 
 // DirectoryWorkStatus 返回目录当前的处理任务、扫描任务或空闲状态。
 func DirectoryWorkStatus(id int64) string {
-	if status := activeDirectoryProcessingStatus(id); status != "" {
-		return status
+	status, _ := DirectoryWorkSnapshot(id)
+	return status
+}
+
+// DirectoryWorkSnapshot returns a consistent scan status and its current counters.
+// Filesystem processing tasks do not expose scan counters; their follow-up scans do.
+func DirectoryWorkSnapshot(id int64) (string, *DirectoryScanProgress) {
+	status := activeDirectoryProcessingStatus(id)
+	if status != "" && status != DirectoryWorkScanning {
+		return status, nil
 	}
-	if IsDirectoryScanning(id) {
-		return DirectoryWorkScanning
+	dirScanMu.Lock()
+	defer dirScanMu.Unlock()
+	if session := dirScanActive[id]; session != nil && !session.reserve {
+		session.progress.mu.Lock()
+		progress := session.progress.DirectoryScanProgress
+		session.progress.mu.Unlock()
+		progress.ElapsedMS = time.Since(session.startedAt).Milliseconds()
+		return DirectoryWorkScanning, &progress
 	}
-	return DirectoryWorkIdle
+	// Keep the directory busy while the processing job hands off to/from its scan.
+	if status == DirectoryWorkScanning {
+		return status, &DirectoryScanProgress{}
+	}
+	return DirectoryWorkIdle, nil
 }
 
 // acquireDirectoryScanSession 获取单目录扫描会话，保证同一目录同一时间只运行一个扫描任务。
@@ -74,9 +130,13 @@ func acquireDirectoryScanSession(ctx context.Context, id int64) (context.Context
 	}
 
 	scanCtx, cancel := context.WithCancel(ctx)
+	progress := &directoryScanProgress{}
+	scanCtx = context.WithValue(scanCtx, directoryScanProgressKey{}, progress)
 	session := &directoryScanSession{
-		cancel: cancel,
-		done:   make(chan struct{}),
+		cancel:    cancel,
+		done:      make(chan struct{}),
+		startedAt: time.Now(),
+		progress:  progress,
 	}
 	dirScanActive[id] = session
 

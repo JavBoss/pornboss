@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import { CircularProgress, IconButton, Switch, Tooltip } from '@mui/material'
 
@@ -99,6 +100,14 @@ const formatScanDuration = (summary) => {
   return zh(`${hours} 小时 ${minutes} 分`, `${hours} hr ${minutes} min`)
 }
 
+const formatScanElapsedTime = (elapsedMS) => {
+  const value = Number(elapsedMS)
+  const seconds = Number.isFinite(value) ? Math.max(0, Math.floor(value / 1000)) : 0
+  return [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':')
+}
+
 const directoryWorkStatus = (directory) =>
   directory?.work_status || (directory?.is_scanning ? 'scanning' : 'idle')
 
@@ -130,12 +139,6 @@ const directoryWorkStatusDisplay = (status) => {
         ),
         badge: 'bg-amber-50 text-amber-700',
         dot: 'animate-pulse bg-amber-500',
-      }
-    case 'rescanning':
-      return {
-        label: zh('当前状态：重新扫描中', 'Status: Rescanning'),
-        badge: 'bg-blue-50 text-blue-700',
-        dot: 'animate-pulse bg-blue-500',
       }
     default:
       return {
@@ -516,8 +519,7 @@ export default function DirectoryManager({
     directories.find((directory) => directory.id === scanSettingsDirectory?.id) ||
     scanSettingsDirectory
   const scanSettingsWorkStatus = directoryWorkStatus(currentScanSettingsDirectory)
-  const scanSettingsRunning =
-    scanSettingsWorkStatus === 'scanning' || scanSettingsWorkStatus === 'rescanning'
+  const scanSettingsRunning = scanSettingsWorkStatus === 'scanning'
 
   return (
     <div className="space-y-3">
@@ -556,27 +558,6 @@ export default function DirectoryManager({
                       <div className="min-w-0 truncate text-sm font-medium">
                         {displayPath(d.path)}
                       </div>
-                      <div className="flex shrink-0 items-center gap-1 text-xs font-normal text-zinc-500">
-                        <span>{autoScanDisplay}</span>
-                        <Tooltip title={zh('编辑扫描设置', 'Edit scan settings')} arrow>
-                          <span className="inline-flex">
-                            <IconButton
-                              type="button"
-                              size="small"
-                              onClick={() => openScanSettings(d)}
-                              disabled={d.is_delete || savingScanSettingsId === d.id}
-                              aria-label={zh('编辑扫描设置', 'Edit scan settings')}
-                              className="!h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900 disabled:!opacity-60"
-                            >
-                              {savingScanSettingsId === d.id ? (
-                                <CircularProgress size={13} color="inherit" />
-                              ) : (
-                                <SettingsRoundedIcon sx={{ fontSize: 15 }} />
-                              )}
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </div>
                     </div>
                   ) : (
                     <form onSubmit={handleEditSubmit} className="space-y-2">
@@ -614,7 +595,21 @@ export default function DirectoryManager({
                   <div className="flex flex-wrap items-center gap-2">
                     {!isEditing && (
                       <div className="flex items-center divide-x divide-zinc-200 text-xs text-zinc-500">
-                        <span className="pr-3">
+                        {status === 'scanning' && (
+                          <span
+                            className="pr-3"
+                            title={zh(
+                              '本轮已遍历的文件数，包含非视频文件，不含文件夹',
+                              'Files visited in this scan, including non-video files and excluding folders'
+                            )}
+                          >
+                            {zh('已扫描文件', 'Scanned files')}{' '}
+                            <strong className="font-semibold tabular-nums text-zinc-800">
+                              {Number(d.scanned_file_count) || 0}
+                            </strong>
+                          </span>
+                        )}
+                        <span className={status === 'scanning' ? 'px-3' : 'pr-3'}>
                           {zh('已扫描视频', 'Scanned videos')}{' '}
                           <strong className="font-semibold tabular-nums text-zinc-800">
                             {Number(d.scanned_video_count) || 0}
@@ -634,6 +629,11 @@ export default function DirectoryManager({
                       >
                         <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${statusDisplay.dot}`} />
                         {statusDisplay.label}
+                        {status === 'scanning' && (
+                          <span className="ml-1.5 tabular-nums">
+                            {formatScanElapsedTime(d.scan_elapsed_ms)}
+                          </span>
+                        )}
                       </span>
                     )}
                     {d.missing && (
@@ -648,27 +648,61 @@ export default function DirectoryManager({
                     )}
                   </div>
                   {!isEditing && (
-                    <>
-                      {lastScanFinishedAt ? (
-                        <div className="overflow-x-auto whitespace-nowrap text-xs text-zinc-500">
-                          <span>{zh('上次扫描：结束时间 ', 'Last scan: Finished at ')}</span>
-                          <span className="font-semibold tabular-nums text-zinc-900">
-                            {lastScanFinishedAt}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+                      <div className="flex items-center">
+                        <span>{zh('上次扫描：', 'Last scan:')}</span>
+                        <Tooltip
+                          arrow
+                          describeChild
+                          slotProps={{ tooltip: { sx: { maxWidth: 'none' } } }}
+                          title={
+                            lastScanFinishedAt ? (
+                              <div className="whitespace-nowrap py-1 text-xs">
+                                {zh('结束时间：', 'Finished at: ')}
+                                <span className="tabular-nums">{lastScanFinishedAt}</span>
+                                <span className="mx-2" aria-hidden="true">
+                                  ·
+                                </span>
+                                {zh('耗时：', 'Duration: ')}
+                                {formatScanDuration(d.last_scan_summary)}
+                              </div>
+                            ) : (
+                              zh('暂无扫描记录', 'No scan record')
+                            )
+                          }
+                        >
+                          <IconButton
+                            type="button"
+                            size="small"
+                            aria-label={zh('上次扫描详情', 'Last scan details')}
+                            className="!-ml-1.5 !h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900"
+                          >
+                            <InfoOutlinedIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1 text-xs font-normal text-zinc-500">
+                        <span>{autoScanDisplay}</span>
+                        <Tooltip title={zh('编辑扫描设置', 'Edit scan settings')} arrow>
+                          <span className="inline-flex">
+                            <IconButton
+                              type="button"
+                              size="small"
+                              onClick={() => openScanSettings(d)}
+                              disabled={d.is_delete || savingScanSettingsId === d.id}
+                              aria-label={zh('编辑扫描设置', 'Edit scan settings')}
+                              className="!h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900 disabled:!opacity-60"
+                            >
+                              {savingScanSettingsId === d.id ? (
+                                <CircularProgress size={13} color="inherit" />
+                              ) : (
+                                <SettingsRoundedIcon sx={{ fontSize: 15 }} />
+                              )}
+                            </IconButton>
                           </span>
-                          <span aria-hidden="true" className="mx-2 text-zinc-300">
-                            ·
-                          </span>
-                          <span>{zh('耗时 ', 'Duration ')}</span>
-                          <span className="font-semibold tabular-nums text-zinc-900">
-                            {formatScanDuration(d.last_scan_summary)}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-zinc-500">
-                          {zh('上次扫描：暂无记录', 'Last scan: No record')}
-                        </div>
-                      )}
-                    </>
+                        </Tooltip>
+                      </div>
+                    </div>
                   )}
                   {rowErrorId === d.id && rowErrorMsg && (
                     <div className="text-xs text-red-600">{rowErrorMsg}</div>
@@ -699,20 +733,18 @@ export default function DirectoryManager({
                   <div className="flex w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1 md:w-auto md:overflow-visible [&>button]:shrink-0 [&>span]:shrink-0">
                     {!isEditing ? (
                       <>
-                        {scanningId !== d.id &&
-                          status !== 'scanning' &&
-                          status !== 'rescanning' && (
-                            <DirectoryRowIconButton
-                              label={zh(
-                                '手动扫描（点击立刻进行一次目录扫描和 JAV 刮削）',
-                                'Manual scan (click to immediately scan the directory and scrape JAV metadata)'
-                              )}
-                              onClick={() => handleScan(d)}
-                              disabled={d.is_delete || working}
-                            >
-                              <RefreshRoundedIcon fontSize="small" />
-                            </DirectoryRowIconButton>
-                          )}
+                        {scanningId !== d.id && status !== 'scanning' && (
+                          <DirectoryRowIconButton
+                            label={zh(
+                              '手动扫描（点击立刻进行一次目录扫描和 JAV 刮削）',
+                              'Manual scan (click to immediately scan the directory and scrape JAV metadata)'
+                            )}
+                            onClick={() => handleScan(d)}
+                            disabled={d.is_delete || working}
+                          >
+                            <PlayArrowRoundedIcon fontSize="small" />
+                          </DirectoryRowIconButton>
+                        )}
                         <DirectoryRowIconButton
                           label={zh('工具', 'Tools')}
                           onClick={() => {
@@ -889,12 +921,12 @@ export default function DirectoryManager({
               <div className="text-sm font-medium text-zinc-900">
                 {zh('整理方式', 'Organization layout')}
               </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <div className="mt-2 grid grid-cols-3 gap-2">
                 {directoryProcessLayoutOptions().map((option) => (
                   <label
                     key={option.layout}
                     htmlFor={`directory-process-layout-${option.layout}`}
-                    className={`cursor-pointer rounded-xl border p-3 transition ${
+                    className={`min-w-0 cursor-pointer rounded-xl border p-3 transition ${
                       toolLayout === option.layout
                         ? 'border-blue-400 bg-blue-50'
                         : 'border-zinc-200 hover:bg-zinc-50'
@@ -911,7 +943,9 @@ export default function DirectoryManager({
                       />
                       <span className="text-sm font-medium text-zinc-900">{option.title}</span>
                     </span>
-                    <span className="mt-1 block pl-6 text-xs text-zinc-500">{option.example}</span>
+                    <span className="mt-1 block whitespace-nowrap text-[10px] text-zinc-500">
+                      {option.example}
+                    </span>
                   </label>
                 ))}
               </div>
