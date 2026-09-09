@@ -251,33 +251,31 @@ export default function DownloadsView() {
       ) : null}
 
       <section>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-sm text-gray-500">
-              {zh(
-                `进行中 ${counts.active} · 已完成 ${counts.completed} · 失败 ${counts.failed}`,
-                `${counts.active} active · ${counts.completed} completed · ${counts.failed} failed`
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-gray-500">
+            {zh(
+              `进行中 ${counts.active} · 已完成 ${counts.completed} · 失败 ${counts.failed}`,
+              `${counts.active} active · ${counts.completed} completed · ${counts.failed} failed`
+            )}
+          </p>
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={openCreateModal}
               aria-label={zh('新建下载任务', 'Create download job')}
               title={zh('新建下载任务', 'Create download job')}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50 hover:text-gray-900"
             >
-              <AddOutlinedIcon fontSize="small" />
+              <AddOutlinedIcon fontSize="inherit" />
             </button>
             <button
               type="button"
               onClick={() => loadJobs().catch((loadError) => setError(getErrorMessage(loadError)))}
               aria-label={zh('刷新下载队列', 'Refresh download queue')}
               title={zh('刷新下载队列', 'Refresh download queue')}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50 hover:text-gray-900"
             >
-              <RefreshOutlinedIcon fontSize="small" />
+              <RefreshOutlinedIcon fontSize="inherit" />
             </button>
           </div>
         </div>
@@ -289,7 +287,7 @@ export default function DownloadsView() {
         ) : jobs.length === 0 ? (
           <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
             {zh(
-              '队列为空，请点击右上角的新建按钮创建任务',
+              '队列为空，请点击上方的新建按钮创建任务',
               'The queue is empty. Use the create button above to add a job.'
             )}
           </div>
