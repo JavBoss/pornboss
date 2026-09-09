@@ -484,9 +484,11 @@ export async function createDirectory({ path }) {
   return res.json()
 }
 
-export async function pickDirectory() {
-  const res = await apiFetch('/directories/pick', {
-    method: 'POST',
+export async function browseDirectories(path = '', { showHidden = false, signal } = {}) {
+  const params = new URLSearchParams({ path, show_hidden: String(showHidden) })
+  const res = await apiFetch(`/directories/browse?${params}`, {
+    cache: 'no-store',
+    signal,
   })
   if (!res.ok) {
     throw await apiError(res)

@@ -6,11 +6,11 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import {
   fetchCloudDrive2Token,
   fetchDownloaderSettings,
-  pickDirectory,
   testCloudDrive2,
   updateCloudDrive2Settings,
   updateDownloaderSettings,
 } from '@/api'
+import DirectoryPickerModal from '@/components/DirectoryPickerModal'
 import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
 
@@ -24,6 +24,7 @@ const defaultForm = {
 }
 
 export default function DownloaderSettingsView() {
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [settings, setSettings] = useState(null)
   const [form, setForm] = useState(defaultForm)
   const [tokenVisible, setTokenVisible] = useState(false)
@@ -137,20 +138,6 @@ export default function DownloaderSettingsView() {
     )
   }
 
-  const handlePickDownloadDirectory = async () => {
-    setAction('directory-pick')
-    setError('')
-    setNotice('')
-    try {
-      const result = await pickDirectory()
-      updateForm('downloadDirectory', result?.path || '')
-    } catch (pickError) {
-      setError(getErrorMessage(pickError))
-    } finally {
-      setAction('')
-    }
-  }
-
   const handleTokenVisibility = async () => {
     if (tokenVisible) {
       setTokenVisible(false)
@@ -242,12 +229,8 @@ export default function DownloaderSettingsView() {
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={handlePickDownloadDirectory}
-                  aria-label={
-                    action === 'directory-pick'
-                      ? zh('正在选择目录', 'Choosing directory')
-                      : zh('选择目录', 'Choose directory')
-                  }
+                  onClick={() => setPickerOpen(true)}
+                  aria-label={zh('选择目录', 'Choose directory')}
                   title={zh('选择目录', 'Choose directory')}
                   className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                 >
@@ -428,6 +411,16 @@ export default function DownloaderSettingsView() {
           </form>
         </section>
       </div>
+      {pickerOpen && (
+        <DirectoryPickerModal
+          initialPath={form.downloadDirectory}
+          onClose={() => setPickerOpen(false)}
+          onSelect={(selectedPath) => {
+            updateForm('downloadDirectory', selectedPath)
+            setPickerOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }

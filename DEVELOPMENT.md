@@ -40,7 +40,7 @@ npm install
 DOCKER_MODE=1 ./scripts/cli.sh dev backend
 ```
 
-该模式会启用 `JAVBOSS_CONTAINER=1`，禁用 API token、目录选择器、桌面集成和 mpv 播放，并使用 ffmpeg 生成截图。需要本机可通过 `FFMPEG_PATH`、`internal/bin/ffmpeg` 或系统 `PATH` 找到 `ffmpeg`。本地调试默认不会把前端输入的目录自动加上 `/host` 前缀，也不会把 `127.0.0.1` 代理改写为 `host.docker.internal`；如需测试 Docker 宿主机路径映射，可使用 `DOCKER_MODE=1 JAVBOSS_HOST_PATH_PREFIX=1 ./scripts/cli.sh dev backend`，如需测试 Docker 代理网关映射，可额外设置 `JAVBOSS_PROXY_HOST_GATEWAY=1`。
+该模式会启用 `JAVBOSS_CONTAINER=1`，禁用 API token、桌面集成和 mpv 播放，并使用 ffmpeg 生成截图。需要本机可通过 `FFMPEG_PATH`、`internal/bin/ffmpeg` 或系统 `PATH` 找到 `ffmpeg`。本地调试默认不会把前端输入的目录自动加上 `/host` 前缀，也不会把 `127.0.0.1` 代理改写为 `host.docker.internal`；如需测试 Docker 宿主机路径映射，可使用 `DOCKER_MODE=1 JAVBOSS_HOST_PATH_PREFIX=1 ./scripts/cli.sh dev backend`，如需测试 Docker 代理网关映射，可额外设置 `JAVBOSS_PROXY_HOST_GATEWAY=1`。
 
 启动前端：
 

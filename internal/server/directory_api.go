@@ -13,9 +13,7 @@ import (
 	"javboss/internal/common/logging"
 	dbpkg "javboss/internal/db"
 	"javboss/internal/models"
-	"javboss/internal/runtimeconfig"
 	"javboss/internal/service"
-	"javboss/internal/util/dirpicker"
 )
 
 const maxDirectoryAutoScanIntervalMinutes = 525600
@@ -84,27 +82,6 @@ func createDirectory(c *gin.Context) {
 		}
 	}(*dir)
 	c.JSON(http.StatusCreated, dir)
-}
-
-func pickDirectory(c *gin.Context) {
-	if runtimeconfig.DisableDirectoryPicker() {
-		respondLocalizedError(c, http.StatusNotImplemented, "当前部署模式已禁用目录选择器", "The directory picker is disabled in this deployment")
-		return
-	}
-	if err := http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(10 * time.Minute)); err != nil && !errors.Is(err, http.ErrNotSupported) {
-		logging.Error("set directory picker write deadline failed: %v", err)
-	}
-	path, err := dirpicker.PickDirectory(c.Request.Context())
-	if err != nil {
-		if errors.Is(err, dirpicker.ErrDirPickerCanceled) {
-			respondLocalizedError(c, http.StatusBadRequest, "已取消选择目录", "Directory selection was canceled")
-			return
-		}
-		logging.Error("pick directory error: %v", err)
-		respondLocalizedError(c, http.StatusInternalServerError, "打开目录选择器失败", "Failed to open the directory picker")
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"path": path})
 }
 
 func updateDirectory(c *gin.Context) {
