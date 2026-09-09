@@ -20,7 +20,7 @@ func ContainerMode() bool {
 }
 
 func DisableDirectoryPicker() bool {
-	return ContainerMode() || envBool("JAVBOSS_DISABLE_DIRECTORY_PICKER")
+	return envBool("JAVBOSS_DISABLE_DIRECTORY_PICKER")
 }
 
 func DisableDesktopIntegration() bool {

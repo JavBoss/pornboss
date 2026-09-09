@@ -40,7 +40,7 @@ npm install
 DOCKER_MODE=1 ./scripts/cli.sh dev backend
 ```
 
-该模式会启用 `JAVBOSS_CONTAINER=1`，禁用 API token、目录选择器、桌面集成和 mpv 播放，并使用 ffmpeg 生成截图。需要本机可通过 `FFMPEG_PATH`、`internal/bin/ffmpeg` 或系统 `PATH` 找到 `ffmpeg`。本地调试默认不会把前端输入的目录自动加上 `/host` 前缀，也不会把 `127.0.0.1` 代理改写为 `host.docker.internal`；如需测试 Docker 宿主机路径映射，可使用 `DOCKER_MODE=1 JAVBOSS_HOST_PATH_PREFIX=1 ./scripts/cli.sh dev backend`，如需测试 Docker 代理网关映射，可额外设置 `JAVBOSS_PROXY_HOST_GATEWAY=1`。
+该模式会启用 `JAVBOSS_CONTAINER=1`，禁用 API token、桌面集成和 mpv 播放，并使用 ffmpeg 生成截图。需要本机可通过 `FFMPEG_PATH`、`internal/bin/ffmpeg` 或系统 `PATH` 找到 `ffmpeg`。本地调试默认不会把前端输入的目录自动加上 `/host` 前缀，也不会把 `127.0.0.1` 代理改写为 `host.docker.internal`；如需测试 Docker 宿主机路径映射，可使用 `DOCKER_MODE=1 JAVBOSS_HOST_PATH_PREFIX=1 ./scripts/cli.sh dev backend`，如需测试 Docker 代理网关映射，可额外设置 `JAVBOSS_PROXY_HOST_GATEWAY=1`。
 
 启动前端：
 
@@ -80,3 +80,12 @@ web/                   React + Tailwind 前端
 scripts/cli            开发、依赖下载与发布辅助 CLI
 data/                  运行期数据库、封面、缩略图与缓存
 ```
+
+## 目录浏览接口
+
+`GET /directories/browse` 使用现有登录认证，返回服务端文件系统中的当前路径 `path`、上级路径 `parent`（根目录为空）、用户目录 `home`、根目录/Windows 盘符 `roots`，以及直属子目录 `directories`（每项包含 `name` 和 `path`）。
+
+- `path`：可选的绝对目录路径，默认服务端用户主目录。Docker 宿主机路径需使用容器内映射路径，例如 `/host/mnt/disk1/videos`。
+- `show_hidden`：可选，`true` 时包含名称以 `.` 开头的目录，默认隐藏。
+
+新增/编辑扫描目录和本地下载目录共用站内选择弹窗。Client 模式浏览远端 Server 的目录。设置 `JAVBOSS_DISABLE_DIRECTORY_PICKER=1` 可显式禁用目录浏览。旧的 `POST /directories/pick` 原生选择接口已移除。

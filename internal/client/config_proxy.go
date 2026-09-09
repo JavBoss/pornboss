@@ -111,7 +111,6 @@ func (c *Client) writeMergedConfig(w http.ResponseWriter, remoteConfig map[strin
 		config[key] = value
 	}
 	config["runtime_client"] = "true"
-	config["directory_picker_enabled"] = "false"
 	config["desktop_integration_enabled"] = "false"
 	config["mpv_enabled"] = "true"
 	config["browser_playback_only"] = "false"

@@ -7,7 +7,7 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import { CircularProgress, IconButton, Switch, Tooltip } from '@mui/material'
 
-import { pickDirectory } from '@/api'
+import DirectoryPickerModal from '@/components/DirectoryPickerModal'
 import AppModal from '@/components/AppModal'
 import { apiHostPath, displayHostPath } from '@/utils/hostPath'
 import { zh } from '@/utils/i18n'
@@ -206,7 +206,8 @@ export default function DirectoryManager({
 }) {
   const [path, setPath] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [picking, setPicking] = useState(false)
+  const [pickerTarget, setPickerTarget] = useState(null)
+  const picking = pickerTarget !== null
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
 
@@ -253,6 +254,7 @@ export default function DirectoryManager({
 
   useEffect(() => {
     if (open) {
+      setPickerTarget(null)
       setPath('')
       setError('')
       setAdding(false)
@@ -311,30 +313,6 @@ export default function DirectoryManager({
     const timer = window.setInterval(refresh, 1000)
     return () => window.clearInterval(timer)
   }, [onRefresh, open])
-
-  const handlePick = async ({ setValue, setErr, setRowId }) => {
-    setError('')
-    setPicking(true)
-    try {
-      const data = await pickDirectory()
-      const picked = data?.path?.trim()
-      if (!picked) {
-        throw new Error(zh('未获取到目录路径', 'No directory path returned'))
-      }
-      setValue?.(displayPath(picked))
-    } catch (err) {
-      if (setErr) {
-        setErr(getErrorMessage(err))
-      } else {
-        setError(getErrorMessage(err))
-      }
-      if (setRowId) {
-        setRowId()
-      }
-    } finally {
-      setPicking(false)
-    }
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -574,11 +552,7 @@ export default function DirectoryManager({
                             onClick={() => {
                               setRowErrorId(null)
                               setRowErrorMsg('')
-                              handlePick({
-                                setValue: setEditPath,
-                                setErr: setRowErrorMsg,
-                                setRowId: () => setRowErrorId(editId),
-                              })
+                              setPickerTarget('edit')
                             }}
                             disabled={picking || working}
                             className="rounded border px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-60"
@@ -825,7 +799,10 @@ export default function DirectoryManager({
             {directoryPickerEnabled ? (
               <button
                 type="button"
-                onClick={() => handlePick({ setValue: setPath, setErr: setError })}
+                onClick={() => {
+                  setError('')
+                  setPickerTarget('add')
+                }}
                 disabled={picking || submitting}
                 className="rounded border px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-60"
               >
@@ -1086,6 +1063,18 @@ export default function DirectoryManager({
             </button>
           </div>
         </AppModal>
+      )}
+      {open && pickerTarget && (
+        <DirectoryPickerModal
+          initialPath={apiPath(pickerTarget === 'edit' ? editPath : path)}
+          useHostPaths={useHostPaths}
+          onClose={() => setPickerTarget(null)}
+          onSelect={(selectedPath) => {
+            if (pickerTarget === 'edit') setEditPath(displayPath(selectedPath))
+            else setPath(displayPath(selectedPath))
+            setPickerTarget(null)
+          }}
+        />
       )}
     </div>
   )
