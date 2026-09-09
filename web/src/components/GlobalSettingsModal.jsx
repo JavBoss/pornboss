@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
@@ -1430,10 +1431,13 @@ export default function GlobalSettingsModal({
           <p className="mt-1 text-sm text-zinc-500">{zh(activeTitle.zh, activeTitle.en)}</p>
         </div>
         <button
+          type="button"
           onClick={onClose}
-          className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
+          aria-label={zh('关闭全局设置', 'Close global settings')}
+          title={zh('关闭', 'Close')}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
-          {zh('关闭', 'Close')}
+          <CloseRoundedIcon sx={{ fontSize: 20 }} />
         </button>
       </div>
 

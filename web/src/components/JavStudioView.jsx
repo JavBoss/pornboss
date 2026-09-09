@@ -731,14 +731,16 @@ export function StudioCard({
                   </div>
                   <button
                     type="button"
-                    className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                    aria-label={zh('关闭片商系列', 'Close studio series')}
+                    title={zh('关闭', 'Close')}
                     onClick={(event) => {
                       event.preventDefault()
                       event.stopPropagation()
                       closeSeriesList()
                     }}
                   >
-                    {zh('关闭', 'Close')}
+                    <CloseRoundedIcon sx={{ fontSize: 20 }} />
                   </button>
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto">
