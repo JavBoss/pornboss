@@ -48,8 +48,8 @@ func updateDownloaderSettings(c *gin.Context) {
 		respondLocalizedError(c, http.StatusBadRequest, "下载器配置格式不正确", "Invalid downloader settings")
 		return
 	}
-	if request.LocalConcurrency < 1 || request.LocalConcurrency > 5 {
-		respondLocalizedError(c, http.StatusBadRequest, "本地下载并发数必须在 1 到 5 之间", "Local download concurrency must be between 1 and 5")
+	if request.LocalConcurrency < 1 || request.LocalConcurrency > models.MaxLocalDownloadConcurrency {
+		respondLocalizedError(c, http.StatusBadRequest, "本地下载并发数必须在 1 到 3 之间", "Local download concurrency must be between 1 and 3")
 		return
 	}
 	if request.MinVideoSizeMB < 1 || request.MinVideoSizeMB > 102400 {

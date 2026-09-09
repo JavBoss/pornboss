@@ -190,7 +190,7 @@ func newLocalDownloadLimiter(limit int) *localDownloadLimiter {
 }
 
 func normalizedLocalConcurrency(limit int) int {
-	if limit < 1 || limit > 5 {
+	if limit < 1 || limit > models.MaxLocalDownloadConcurrency {
 		return 2
 	}
 	return limit

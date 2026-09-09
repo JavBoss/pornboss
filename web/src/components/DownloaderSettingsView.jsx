@@ -248,7 +248,7 @@ export default function DownloaderSettingsView() {
                 onChange={(event) => updateForm('localConcurrency', Number(event.target.value))}
                 className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-xs outline-none focus:border-blue-500 sm:w-24"
               >
-                {[1, 2, 3, 4, 5].map((value) => (
+                {[1, 2, 3].map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>

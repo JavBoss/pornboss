@@ -180,3 +180,41 @@ func TestDownloadRevealTargetFallsBackToConfiguredDirectory(t *testing.T) {
 		t.Fatalf("reveal target = %q, want %q", target, root)
 	}
 }
+
+func TestUpdateDownloaderSettingsConcurrencyRange(t *testing.T) {
+	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "concurrency-api.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousDB := common.DB
+	common.DB = database
+	t.Cleanup(func() {
+		common.DB = previousDB
+		if sqlDB, err := database.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.PUT("/downloader/settings", updateDownloaderSettings)
+	directory := t.TempDir()
+	for _, concurrency := range []int{-1, 0, 1, 2, 3, 4, 5} {
+		body, err := json.Marshal(map[string]any{
+			"download_directory": directory, "local_concurrency": concurrency, "min_video_size_mb": 50,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := httptest.NewRequest(http.MethodPut, "/downloader/settings", strings.NewReader(string(body)))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		wantStatus := http.StatusOK
+		if concurrency < 1 || concurrency > 3 {
+			wantStatus = http.StatusBadRequest
+		}
+		if response.Code != wantStatus {
+			t.Fatalf("concurrency %d: status = %d, want %d, body = %s", concurrency, response.Code, wantStatus, response.Body.String())
+		}
+	}
+}

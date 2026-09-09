@@ -113,3 +113,24 @@ func TestLocalDownloadLimiterWaitHonorsCancellation(t *testing.T) {
 	}
 	limiter.release()
 }
+
+func TestLocalDownloadLimiterAllowsThreeDownloads(t *testing.T) {
+	limiter := newLocalDownloadLimiter(3)
+	for i := 0; i < 3; i++ {
+		if err := limiter.acquire(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := limiter.acquire(ctx); err != context.Canceled {
+		t.Fatalf("fourth download acquired a slot: %v", err)
+	}
+	limiter.release()
+	if err := limiter.acquire(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		limiter.release()
+	}
+}

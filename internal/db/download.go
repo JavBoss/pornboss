@@ -50,7 +50,7 @@ func SaveDownloaderSettings(ctx context.Context, settings *models.DownloaderSett
 	settings.ID = 1
 	settings.ActiveProvider = models.DownloaderProviderCloudDrive2
 	settings.DownloadDirectory = strings.TrimSpace(settings.DownloadDirectory)
-	if settings.LocalConcurrency < 1 || settings.LocalConcurrency > 5 {
+	if settings.LocalConcurrency < 1 || settings.LocalConcurrency > models.MaxLocalDownloadConcurrency {
 		settings.LocalConcurrency = 2
 	}
 	if settings.MinVideoSizeBytes <= 0 {

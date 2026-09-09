@@ -3,6 +3,7 @@ package models
 import "time"
 
 const (
+	MaxLocalDownloadConcurrency         = 3
 	DefaultMinVideoSizeBytes      int64 = 50 * 1024 * 1024
 	DownloaderProviderCloudDrive2       = "clouddrive2"
 
