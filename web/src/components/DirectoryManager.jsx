@@ -636,14 +636,11 @@ export default function DirectoryManager({
                       >
                         <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${statusDisplay.dot}`} />
                         {statusDisplay.label}
-                      </span>
-                    )}
-                    {!isEditing && status === 'scanning' && (
-                      <span className="whitespace-nowrap text-xs text-zinc-500">
-                        {zh('已运行时间：', 'Elapsed time: ')}
-                        <strong className="font-semibold tabular-nums text-zinc-800">
-                          {formatScanElapsedTime(d.scan_elapsed_ms)}
-                        </strong>
+                        {status === 'scanning' && (
+                          <span className="ml-1.5 tabular-nums">
+                            {formatScanElapsedTime(d.scan_elapsed_ms)}
+                          </span>
+                        )}
                       </span>
                     )}
                     {d.missing && (
