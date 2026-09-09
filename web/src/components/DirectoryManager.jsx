@@ -1066,7 +1066,7 @@ export default function DirectoryManager({
       )}
       {open && pickerTarget && (
         <DirectoryPickerModal
-          initialPath={apiPath(pickerTarget === 'edit' ? editPath : path)}
+          initialPath={pickerTarget === 'edit' ? editPath : path}
           useHostPaths={useHostPaths}
           onClose={() => setPickerTarget(null)}
           onSelect={(selectedPath) => {

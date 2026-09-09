@@ -119,8 +119,9 @@ func TestBrowseDirectorySymlinksAndRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if data := browse(""); data.Path != filepath.Clean(home) {
-		t.Fatalf("default path = %q, want home %q", data.Path, home)
+	defaultRoot := filepath.VolumeName(home) + string(filepath.Separator)
+	if data := browse(""); data.Path != defaultRoot || data.Parent != "" {
+		t.Fatalf("default path = %q, parent = %q, want root %q without parent", data.Path, data.Parent, defaultRoot)
 	}
 	data := browse(root)
 	if len(data.Directories) != 1 || data.Directories[0].Name != "linked" {

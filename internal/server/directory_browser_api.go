@@ -28,7 +28,7 @@ type directoryBrowseResponse struct {
 }
 
 // browseDirectories handles GET /directories/browse. The optional path is an
-// absolute server path (defaults to the user's home); show_hidden=true includes
+// absolute server path (defaults to the root of the user's home volume); show_hidden=true includes
 // dot-prefixed directories. Only immediate subdirectories are returned, including
 // symlinks to directories. Paths retain symlinks so mounted/host paths stay usable.
 func browseDirectories(c *gin.Context) {
@@ -43,7 +43,7 @@ func browseDirectories(c *gin.Context) {
 	}
 	path := c.Query("path")
 	if path == "" {
-		path = home
+		path = filepath.VolumeName(home) + string(filepath.Separator)
 	}
 	if strings.ContainsRune(path, 0) || !filepath.IsAbs(path) {
 		respondLocalizedError(c, http.StatusBadRequest, "请输入完整的绝对目录路径", "Enter a complete absolute directory path")

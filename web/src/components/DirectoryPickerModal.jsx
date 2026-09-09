@@ -21,11 +21,12 @@ export default function DirectoryPickerModal({
 }) {
   const titleId = useId()
   const pathId = useId()
-  const [request, setRequest] = useState({ path: initialPath || (useHostPaths ? '/host' : '') })
+  const [request, setRequest] = useState(() => ({
+    path: apiHostPath(initialPath, useHostPaths) || (useHostPaths ? '/host' : ''),
+  }))
   const [pathInput, setPathInput] = useState(displayHostPath(request.path, useHostPaths))
   const [listing, setListing] = useState(null)
   const [showHidden, setShowHidden] = useState(false)
-  const [filter, setFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -54,14 +55,11 @@ export default function DirectoryPickerModal({
   const navigate = (path) => {
     setLoading(true)
     setPathInput(displayHostPath(path, useHostPaths))
-    setFilter('')
     setRequest({ path })
   }
   const parent = useHostPaths && listing?.path === '/host' ? '' : listing?.parent
   const roots = useHostPaths ? [{ name: '/', path: '/host' }] : listing?.roots || []
-  const directories = (listing?.directories || []).filter((entry) =>
-    entry.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase())
-  )
+  const directories = listing?.directories || []
   const inputChanged = pathInput !== displayHostPath(listing?.path, useHostPaths)
   const iconButton = (label, icon, onClick, disabled = false) => (
     <Tooltip title={label}>
@@ -85,24 +83,18 @@ export default function DirectoryPickerModal({
       onClose={onClose}
       zIndex={1500}
       className="max-w-full p-3 sm:p-6"
-      contentClassName="flex max-h-[85dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+      contentClassName="flex h-[600px] max-h-[85dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
     >
-      <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b px-5 py-4">
         <div>
           <h2 id={titleId} className="flex items-center gap-2 text-lg font-semibold text-gray-900">
             <FolderOpenOutlinedIcon className="text-blue-600" />
             {zh('选择目录', 'Choose directory')}
           </h2>
-          <p className="mt-1 text-xs text-gray-500">
-            {zh(
-              '浏览 JavBoss 服务端可访问的目录，进入目标目录后确认选择。',
-              'Browse directories accessible to the JavBoss server, then confirm the current directory.'
-            )}
-          </p>
         </div>
         {iconButton(zh('关闭', 'Close'), <CloseRoundedIcon />, onClose)}
       </div>
-      <div className="space-y-3 border-b px-5 py-3">
+      <div className="shrink-0 space-y-3 border-b px-5 py-3">
         <div className="flex flex-wrap items-center gap-2">
           {iconButton(
             zh('返回上级', 'Parent directory'),
@@ -110,8 +102,8 @@ export default function DirectoryPickerModal({
             () => navigate(parent),
             loading || !parent
           )}
-          {iconButton(zh('起始目录', 'Home directory'), <HomeOutlinedIcon fontSize="small" />, () =>
-            navigate(useHostPaths ? '/host' : listing?.home || '')
+          {iconButton(zh('根目录', 'Root directory'), <HomeOutlinedIcon fontSize="small" />, () =>
+            navigate(useHostPaths ? '/host' : '')
           )}
           {iconButton(
             zh('刷新', 'Refresh'),
@@ -167,19 +159,12 @@ export default function DirectoryPickerModal({
             {zh('前往', 'Go')}
           </button>
         </form>
-        <input
-          aria-label={zh('筛选当前目录', 'Filter current directory')}
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          placeholder={zh('筛选文件夹名称…', 'Filter folder names…')}
-          className="w-full rounded-lg border bg-gray-50 px-3 py-2 text-sm outline-none focus:border-blue-500"
-        />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2" aria-busy={loading}>
         {loading ? (
           <div
             role="status"
-            className="flex h-56 items-center justify-center gap-3 text-sm text-gray-500"
+            className="flex h-full items-center justify-center gap-3 text-sm text-gray-500"
           >
             <CircularProgress size={20} />
             {zh('正在读取目录…', 'Loading directories…')}
@@ -187,7 +172,7 @@ export default function DirectoryPickerModal({
         ) : error ? (
           <div
             role="alert"
-            className="flex h-56 flex-col items-center justify-center gap-3 px-3 text-sm text-red-600"
+            className="flex h-full flex-col items-center justify-center gap-3 px-3 text-sm text-red-600"
           >
             <p>{error}</p>
             <button
@@ -201,17 +186,15 @@ export default function DirectoryPickerModal({
         ) : directories.length === 0 ? (
           <div
             role="status"
-            className="flex h-56 items-center justify-center text-sm text-gray-500"
+            className="flex h-full items-center justify-center text-sm text-gray-500"
           >
-            {filter
-              ? zh('没有匹配的子目录', 'No matching subdirectories')
-              : zh(
-                  '此目录下没有子目录，可直接选择当前目录',
-                  'No subdirectories. You can select the current directory.'
-                )}
+            {zh(
+              '此目录下没有子目录，可直接选择当前目录',
+              'No subdirectories. You can select the current directory.'
+            )}
           </div>
         ) : (
-          <ul className="min-h-56 space-y-1">
+          <ul className="space-y-1">
             {directories.map((entry) => (
               <li key={entry.path}>
                 <button
@@ -229,7 +212,7 @@ export default function DirectoryPickerModal({
           </ul>
         )}
       </div>
-      <div className="space-y-3 border-t bg-gray-50 px-5 py-4">
+      <div className="shrink-0 space-y-3 border-t bg-gray-50 px-5 py-4">
         <p className="break-all text-xs text-gray-500" aria-live="polite">
           {zh('当前目录：', 'Current directory: ')}
           {loading ? '…' : displayHostPath(listing?.path, useHostPaths) || '—'}

@@ -80,12 +80,3 @@ web/                   React + Tailwind 前端
 scripts/cli            开发、依赖下载与发布辅助 CLI
 data/                  运行期数据库、封面、缩略图与缓存
 ```
-
-## 目录浏览接口
-
-`GET /directories/browse` 使用现有登录认证，返回服务端文件系统中的当前路径 `path`、上级路径 `parent`（根目录为空）、用户目录 `home`、根目录/Windows 盘符 `roots`，以及直属子目录 `directories`（每项包含 `name` 和 `path`）。
-
-- `path`：可选的绝对目录路径，默认服务端用户主目录。Docker 宿主机路径需使用容器内映射路径，例如 `/host/mnt/disk1/videos`。
-- `show_hidden`：可选，`true` 时包含名称以 `.` 开头的目录，默认隐藏。
-
-新增/编辑扫描目录和本地下载目录共用站内选择弹窗。Client 模式浏览远端 Server 的目录。设置 `JAVBOSS_DISABLE_DIRECTORY_PICKER=1` 可显式禁用目录浏览。旧的 `POST /directories/pick` 原生选择接口已移除。
