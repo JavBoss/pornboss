@@ -140,12 +140,6 @@ const directoryWorkStatusDisplay = (status) => {
         badge: 'bg-amber-50 text-amber-700',
         dot: 'animate-pulse bg-amber-500',
       }
-    case 'rescanning':
-      return {
-        label: zh('当前状态：重新扫描中', 'Status: Rescanning'),
-        badge: 'bg-blue-50 text-blue-700',
-        dot: 'animate-pulse bg-blue-500',
-      }
     default:
       return {
         label: zh('当前状态：空闲', 'Status: Idle'),
@@ -525,8 +519,7 @@ export default function DirectoryManager({
     directories.find((directory) => directory.id === scanSettingsDirectory?.id) ||
     scanSettingsDirectory
   const scanSettingsWorkStatus = directoryWorkStatus(currentScanSettingsDirectory)
-  const scanSettingsRunning =
-    scanSettingsWorkStatus === 'scanning' || scanSettingsWorkStatus === 'rescanning'
+  const scanSettingsRunning = scanSettingsWorkStatus === 'scanning'
 
   return (
     <div className="space-y-3">
@@ -740,20 +733,18 @@ export default function DirectoryManager({
                   <div className="flex w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1 md:w-auto md:overflow-visible [&>button]:shrink-0 [&>span]:shrink-0">
                     {!isEditing ? (
                       <>
-                        {scanningId !== d.id &&
-                          status !== 'scanning' &&
-                          status !== 'rescanning' && (
-                            <DirectoryRowIconButton
-                              label={zh(
-                                '手动扫描（点击立刻进行一次目录扫描和 JAV 刮削）',
-                                'Manual scan (click to immediately scan the directory and scrape JAV metadata)'
-                              )}
-                              onClick={() => handleScan(d)}
-                              disabled={d.is_delete || working}
-                            >
-                              <PlayArrowRoundedIcon fontSize="small" />
-                            </DirectoryRowIconButton>
-                          )}
+                        {scanningId !== d.id && status !== 'scanning' && (
+                          <DirectoryRowIconButton
+                            label={zh(
+                              '手动扫描（点击立刻进行一次目录扫描和 JAV 刮削）',
+                              'Manual scan (click to immediately scan the directory and scrape JAV metadata)'
+                            )}
+                            onClick={() => handleScan(d)}
+                            disabled={d.is_delete || working}
+                          >
+                            <PlayArrowRoundedIcon fontSize="small" />
+                          </DirectoryRowIconButton>
+                        )}
                         <DirectoryRowIconButton
                           label={zh('工具', 'Tools')}
                           onClick={() => {

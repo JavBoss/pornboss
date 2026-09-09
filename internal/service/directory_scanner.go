@@ -71,7 +71,6 @@ const (
 	DirectoryWorkOrganizing            = "organizing"
 	DirectoryWorkGeneratingSidecar     = "generating_sidecar"
 	DirectoryWorkOrganizingWithSidecar = "organizing_with_sidecar"
-	DirectoryWorkRescanning            = "rescanning"
 )
 
 // IsDirectoryScanning 判断指定目录是否正在执行文件扫描；目录更新使用的临时占用不算扫描中。
@@ -93,9 +92,10 @@ func DirectoryWorkStatus(id int64) string {
 }
 
 // DirectoryWorkSnapshot returns a consistent scan status and its current counters.
-// Processing tasks and temporary reservations do not expose scan counters.
+// Filesystem processing tasks do not expose scan counters; their follow-up scans do.
 func DirectoryWorkSnapshot(id int64) (string, *DirectoryScanProgress) {
-	if status := activeDirectoryProcessingStatus(id); status != "" {
+	status := activeDirectoryProcessingStatus(id)
+	if status != "" && status != DirectoryWorkScanning {
 		return status, nil
 	}
 	dirScanMu.Lock()
@@ -106,6 +106,10 @@ func DirectoryWorkSnapshot(id int64) (string, *DirectoryScanProgress) {
 		session.progress.mu.Unlock()
 		progress.ElapsedMS = time.Since(session.startedAt).Milliseconds()
 		return DirectoryWorkScanning, &progress
+	}
+	// Keep the directory busy while the processing job hands off to/from its scan.
+	if status == DirectoryWorkScanning {
+		return status, &DirectoryScanProgress{}
 	}
 	return DirectoryWorkIdle, nil
 }

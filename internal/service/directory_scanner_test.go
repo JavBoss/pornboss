@@ -91,6 +91,13 @@ func TestDirectoryScanProgressCountsCurrentFilesAndSuccessfulLinks(t *testing.T)
 	}
 	defer finish()
 	assertProgress(0, 0, 0)
+	// A tool job keeps ownership during its follow-up scan. That marker must not
+	// mask the scan session's live counters or allow another tool job to start.
+	setDirectoryProcessingStatus(dir.ID, DirectoryWorkScanning)
+	defer setDirectoryProcessingStatus(dir.ID, "")
+	if err := StartDirectoryProcessing(t.Context(), dir, DirectoryProcessSidecar, DirectoryProcessLayoutPrefix); !errors.Is(err, ErrDirectoryWorkInProgress) {
+		t.Fatalf("follow-up scan should block another tool job: %v", err)
+	}
 	// Delay workers so the file-scan and metadata stages can be checked independently.
 	batch := &javLinkBatch{ctx: scanCtx, tasks: make(chan int64, 10), seen: make(map[int64]struct{})}
 	state, err := loadDirectorySyncState(scanCtx, dir.ID, batch)
@@ -112,6 +119,8 @@ func TestDirectoryScanProgressCountsCurrentFilesAndSuccessfulLinks(t *testing.T)
 		t.Fatalf("another directory inherited scan progress: %s %+v", status, progress)
 	}
 	finish()
+	assertProgress(0, 0, 0) // The tool still owns the directory until its cleanup runs.
+	setDirectoryProcessingStatus(dir.ID, "")
 	if status, progress := DirectoryWorkSnapshot(dir.ID); status != DirectoryWorkIdle || progress != nil {
 		t.Fatalf("finished scan still exposes progress: %s %+v", status, progress)
 	}
