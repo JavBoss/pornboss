@@ -3,7 +3,7 @@ import BuildRoundedIcon from '@mui/icons-material/BuildRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import { CircularProgress, IconButton, Switch, Tooltip } from '@mui/material'
 
@@ -751,7 +751,7 @@ export default function DirectoryManager({
                               onClick={() => handleScan(d)}
                               disabled={d.is_delete || working}
                             >
-                              <RefreshRoundedIcon fontSize="small" />
+                              <PlayArrowRoundedIcon fontSize="small" />
                             </DirectoryRowIconButton>
                           )}
                         <DirectoryRowIconButton
