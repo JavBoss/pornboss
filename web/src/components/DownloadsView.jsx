@@ -468,8 +468,8 @@ export default function DownloadsView() {
             </div>
             <p className="mt-1 text-sm text-gray-500">
               {zh(
-                '输入磁力链接后，通过 CloudDrive2 创建离线下载任务。',
-                'Enter a magnet link to create an offline download through CloudDrive2.'
+                '输入磁力链接后，通过 CloudDrive2 创建离线下载任务并下载到本地。',
+                'Enter a magnet link to create an offline download through CloudDrive2 and download the files locally.'
               )}
             </p>
             {createError ? (

@@ -360,7 +360,7 @@ export default function DownloaderSettingsView() {
                 <input
                   value={form.remoteFolder}
                   onChange={(event) => updateForm('remoteFolder', event.target.value)}
-                  placeholder="/115/JavBoss"
+                  placeholder="/115open/..."
                   className="mt-1 h-9 w-full rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500"
                 />
               </label>
