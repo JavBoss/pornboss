@@ -930,12 +930,12 @@ export default function DirectoryManager({
               <div className="text-sm font-medium text-zinc-900">
                 {zh('整理方式', 'Organization layout')}
               </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <div className="mt-2 grid grid-cols-3 gap-2">
                 {directoryProcessLayoutOptions().map((option) => (
                   <label
                     key={option.layout}
                     htmlFor={`directory-process-layout-${option.layout}`}
-                    className={`cursor-pointer rounded-xl border p-3 transition ${
+                    className={`min-w-0 cursor-pointer rounded-xl border p-3 transition ${
                       toolLayout === option.layout
                         ? 'border-blue-400 bg-blue-50'
                         : 'border-zinc-200 hover:bg-zinc-50'
@@ -952,7 +952,9 @@ export default function DirectoryManager({
                       />
                       <span className="text-sm font-medium text-zinc-900">{option.title}</span>
                     </span>
-                    <span className="mt-1 block pl-6 text-xs text-zinc-500">{option.example}</span>
+                    <span className="mt-1 block whitespace-nowrap text-[10px] text-zinc-500">
+                      {option.example}
+                    </span>
                   </label>
                 ))}
               </div>
