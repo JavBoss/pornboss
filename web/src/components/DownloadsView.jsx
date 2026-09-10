@@ -468,13 +468,7 @@ export default function DownloadsView() {
           )}
         </section>
       </div>
-      <footer className="flex shrink-0 flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-slate-200 bg-white px-4 py-3">
-        <span className="text-xs text-gray-500">
-          {zh(
-            `共 ${total} 条 · 每页 ${DOWNLOAD_PAGE_SIZE} 条`,
-            `${total} tasks · ${DOWNLOAD_PAGE_SIZE} per page`
-          )}
-        </span>
+      <footer className="flex shrink-0 items-center justify-center border-t border-slate-200 bg-white px-4 py-3">
         <Pagination
           page={page}
           count={lastPage}
