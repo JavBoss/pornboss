@@ -64,11 +64,19 @@ export default function DownloadView({ open, onClose }) {
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-2 sm:px-5 sm:pb-5 sm:pt-3">
-        <main id="download-tab-panel" role="tabpanel" className="min-w-0">
-          {activeTab === 'settings' ? <DownloaderSettingsView /> : <DownloadsView />}
-        </main>
-      </div>
+      <main
+        id="download-tab-panel"
+        role="tabpanel"
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
+      >
+        {activeTab === 'settings' ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-2 sm:px-5 sm:pb-5 sm:pt-3">
+            <DownloaderSettingsView />
+          </div>
+        ) : (
+          <DownloadsView />
+        )}
+      </main>
     </AppModal>
   )
 }

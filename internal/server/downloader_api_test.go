@@ -108,6 +108,22 @@ func TestCreateDownloadJobAcceptsManualMagnetOnly(t *testing.T) {
 		t.Fatalf("listed magnet URLs = %#v", payload.Items)
 	}
 
+	pagedResponse := httptest.NewRecorder()
+	router.ServeHTTP(pagedResponse, httptest.NewRequest(http.MethodGet, "/downloads?limit=1&offset=1", nil))
+	if pagedResponse.Code != http.StatusOK {
+		t.Fatalf("pagination status = %d: %s", pagedResponse.Code, pagedResponse.Body.String())
+	}
+	var page dbpkg.DownloadJobPage
+	if err := json.Unmarshal(pagedResponse.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 2 || page.Counts.Active != 2 || len(page.Items) != 1 || page.Items[0].ID != job.ID {
+		t.Fatalf("unexpected paginated response: %+v", page)
+	}
+	if pagedResponse.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("task pages must not be cached")
+	}
+
 	preflightResponse := httptest.NewRecorder()
 	preflightRequest := httptest.NewRequest(http.MethodOptions, "/extension/downloads", nil)
 	preflightRequest.Header.Set("Origin", javBossExtensionOrigin)

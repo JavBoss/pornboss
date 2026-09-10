@@ -168,13 +168,16 @@ func updatedProviderToken(current string, requested *string, clear bool) string 
 	return current
 }
 
+// listDownloadJobs supports limit (default 20, max 500) and offset (default 0).
+// Counts describe all tasks, independent of the requested page.
 func listDownloadJobs(c *gin.Context) {
-	jobs, err := db.ListDownloadJobs(c.Request.Context(), queryInt(c, "limit", 100))
+	c.Header("Cache-Control", "no-store")
+	jobs, err := db.ListDownloadJobs(c.Request.Context(), queryInt(c, "limit", 20), queryInt(c, "offset", 0))
 	if err != nil {
 		respondLocalizedError(c, http.StatusInternalServerError, "读取下载队列失败", "Failed to load the download queue")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": jobs})
+	c.JSON(http.StatusOK, jobs)
 }
 
 func createDownloadJob(c *gin.Context) {

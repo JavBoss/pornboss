@@ -153,30 +153,62 @@ func GetDownloadJob(ctx context.Context, id int64) (*models.DownloadJob, error) 
 	return &job, nil
 }
 
-func ListDownloadJobs(ctx context.Context, limit int) ([]DownloadJobResult, error) {
+type DownloadJobCounts struct {
+	Active    int64 `json:"active"`
+	Completed int64 `json:"completed"`
+	Failed    int64 `json:"failed"`
+}
+
+type DownloadJobPage struct {
+	Items  []DownloadJobResult `json:"items"`
+	Total  int64               `json:"total"`
+	Counts DownloadJobCounts   `json:"counts"`
+}
+
+func ListDownloadJobs(ctx context.Context, limit, offset int) (*DownloadJobPage, error) {
 	if common.DB == nil {
 		return nil, errors.New("list download jobs: nil db")
 	}
 	if limit <= 0 || limit > 500 {
-		limit = 100
+		limit = 20
 	}
-	var rows []models.DownloadJob
-	if err := common.DB.WithContext(ctx).
-		Model(&models.DownloadJob{}).
-		Order("created_at DESC, id DESC").
-		Limit(limit).
-		Scan(&rows).Error; err != nil {
+	if offset < 0 {
+		offset = 0
+	}
+	result := &DownloadJobPage{Items: []DownloadJobResult{}}
+	// Keep counts and rows consistent if tasks are created or removed concurrently.
+	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var statuses []struct {
+			Status string
+			Count  int64
+		}
+		if err := tx.Model(&models.DownloadJob{}).Select("status, COUNT(*) AS count").Group("status").Scan(&statuses).Error; err != nil {
+			return err
+		}
+		for _, status := range statuses {
+			result.Total += status.Count
+			switch status.Status {
+			case models.DownloadQueued, models.DownloadOfflineDownloading, models.DownloadResolvingFiles, models.DownloadWaitingLocal, models.DownloadLocalDownloading:
+				result.Counts.Active += status.Count
+			case models.DownloadCompleted:
+				result.Counts.Completed += status.Count
+			case models.DownloadFailed:
+				result.Counts.Failed += status.Count
+			}
+		}
+		var rows []models.DownloadJob
+		if err := tx.Model(&models.DownloadJob{}).Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Scan(&rows).Error; err != nil {
+			return err
+		}
+		for _, row := range rows {
+			files := []string{}
+			_ = json.Unmarshal([]byte(row.LocalFilesJSON), &files)
+			result.Items = append(result.Items, DownloadJobResult{DownloadJob: row, LocalFiles: files, MagnetURL: row.MagnetURL})
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, fmt.Errorf("list download jobs: %w", err)
-	}
-	result := make([]DownloadJobResult, 0, len(rows))
-	for _, row := range rows {
-		files := []string{}
-		_ = json.Unmarshal([]byte(row.LocalFilesJSON), &files)
-		result = append(result, DownloadJobResult{
-			DownloadJob: row,
-			LocalFiles:  files,
-			MagnetURL:   row.MagnetURL,
-		})
 	}
 	return result, nil
 }

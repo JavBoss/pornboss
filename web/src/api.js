@@ -663,9 +663,11 @@ export async function testCloudDrive2() {
   return parseJSONResponse(res)
 }
 
-export async function fetchDownloadJobs({ limit = 100 } = {}) {
-  const res = await apiFetch(`/downloads?limit=${encodeURIComponent(limit)}`, {
+export async function fetchDownloadJobs({ limit = 20, offset = 0, signal } = {}) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  const res = await apiFetch(`/downloads?${params}`, {
     cache: 'no-store',
+    signal,
   })
   if (!res.ok) throw await apiError(res)
   return parseJSONResponse(res)
