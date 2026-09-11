@@ -23,6 +23,10 @@
     "default_title": "JavBoss 助手",
     "default_popup": "popup.html"
   },
+  "options_ui": {
+    "page": "popup.html",
+    "open_in_tab": false
+  },
   "background": {
     "service_worker": "service-worker.js"
   },
