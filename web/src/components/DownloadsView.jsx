@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Pagination, Tooltip } from '@mui/material'
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
@@ -10,7 +10,6 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined'
 import ReplayOutlinedIcon from '@mui/icons-material/ReplayOutlined'
 import AppModal from '@/components/AppModal'
-import Toast from '@/components/Toast'
 import {
   cancelDownloadJob,
   createDownloadJob,
@@ -138,7 +137,7 @@ async function copyText(value) {
   if (!copied) throw new Error(zh('复制磁力链接失败', 'Failed to copy magnet link'))
 }
 
-export default function DownloadsView() {
+export default function DownloadsView({ onToast }) {
   const [jobs, setJobs] = useState([])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -152,8 +151,6 @@ export default function DownloadsView() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [busyJobIds, setBusyJobIds] = useState(() => new Set())
-  const [copyToast, setCopyToast] = useState(null)
-  const closeCopyToast = useCallback(() => setCopyToast(null), [])
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -261,7 +258,7 @@ export default function DownloadsView() {
     } catch (copyError) {
       message = getErrorMessage(copyError)
     }
-    setCopyToast((current) => ({ id: (current?.id || 0) + 1, message }))
+    onToast?.(message)
   }
 
   return (
@@ -565,12 +562,6 @@ export default function DownloadsView() {
           </form>
         </AppModal>
       ) : null}
-      <Toast
-        key={copyToast?.id}
-        open={!!copyToast}
-        message={copyToast?.message || ''}
-        onClose={closeCopyToast}
-      />
     </div>
   )
 }

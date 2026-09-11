@@ -13,7 +13,7 @@ const tabs = [
   },
 ]
 
-export default function DownloadView({ open, onClose }) {
+export default function DownloadView({ open, onClose, onToast }) {
   const [activeTab, setActiveTab] = useState('jobs')
 
   if (!open) return null
@@ -74,7 +74,7 @@ export default function DownloadView({ open, onClose }) {
             <DownloaderSettingsView />
           </div>
         ) : (
-          <DownloadsView />
+          <DownloadsView onToast={onToast} />
         )}
       </main>
     </AppModal>

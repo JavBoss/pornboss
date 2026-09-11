@@ -9,6 +9,12 @@
   --page-right-padding: clamp(2rem, 3vw, 3.25rem);
   --topbar-left-padding: clamp(1rem, 1.5vw, 1.75rem);
   --topbar-right-padding: clamp(1.5rem, 2.25vw, 2.5rem);
+  /* Reserve the notification layer above app modals (1300–1900) and poppers (up to 2300). */
+  --toast-z-index: 3000;
+}
+
+.app-toast-overlay {
+  z-index: var(--toast-z-index);
 }
 
 html {
