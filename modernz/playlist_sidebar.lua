@@ -48,6 +48,9 @@ local sidebar_visible = false
 local current_width = opts.width
 local pane_left = 0
 local window_width = 0
+local window_height = 0
+local scale_x = 1
+local scale_y = 1
 local dragging = false
 local click_armed = false
 local handle_hovered = false
@@ -55,6 +58,11 @@ local handle_mouse_y = nil
 
 local function clamp(value, minimum, maximum)
     return math.max(minimum, math.min(maximum, value))
+end
+
+local function get_mouse_position()
+    local x, y = mp.get_mouse_pos()
+    return x and math.floor(x / scale_x), y and math.floor(y / scale_y)
 end
 
 local function ass_escape(value)
@@ -127,11 +135,13 @@ local function panel_width(window_width)
 end
 
 local function update_interaction_area(width, height, expanded)
+    local pixel_width = math.floor(width * scale_x + 0.5)
+    local pixel_height = math.floor(height * scale_y + 0.5)
     if expanded then
-        mp.set_mouse_area(0, 0, width, height, section)
+        mp.set_mouse_area(0, 0, pixel_width, pixel_height, section)
     else
         local left = math.max(0, pane_left - math.floor(opts.resize_handle_width / 2))
-        mp.set_mouse_area(left, 0, width, height, section)
+        mp.set_mouse_area(math.floor(left * scale_x), 0, pixel_width, pixel_height, section)
     end
 end
 
@@ -172,20 +182,38 @@ local function render()
     local playlist = mp.get_property_native("playlist", {}) or {}
     local count = #playlist
     local fullscreen = mp.get_property_native("fullscreen", false)
-    local width, height = mp.get_osd_size()
-    if not width or not height or width < 1 or height < 1
+    local pixel_width, pixel_height = mp.get_osd_size()
+    if not pixel_width or not pixel_height or pixel_width < 1 or pixel_height < 1
         or (opts.auto_hide_single and count <= 1)
         or (opts.hide_fullscreen and fullscreen) then
         hide_sidebar()
         return
     end
 
+    local dpi_scale = mp.get_property_number("display-hidpi-scale", 1)
+    if not dpi_scale or dpi_scale ~= dpi_scale or dpi_scale <= 0 or dpi_scale == math.huge then
+        dpi_scale = 1
+    end
+    -- ASS uses logical pixels; mpv mouse areas and the ModernZ width use render pixels.
+    -- Derive each axis from the rounded canvas to keep fractional DPI scales aligned.
+    local width = math.max(1, math.floor(pixel_width / dpi_scale + 0.5))
+    local height = math.max(1, math.floor(pixel_height / dpi_scale + 0.5))
+    local next_scale_x, next_scale_y = pixel_width / width, pixel_height / height
+    if width ~= window_width or height ~= window_height or next_scale_x ~= scale_x or next_scale_y ~= scale_y then
+        dragging = false
+        click_armed = false
+        handle_hovered = false
+        handle_mouse_y = nil
+    end
+    scale_x, scale_y = next_scale_x, next_scale_y
     local pane_width = panel_width(width)
     pane_left = width - pane_width
     window_width = width
+    window_height = height
+    local previous_visible_rows = visible_rows
     visible_rows = math.max(1, math.floor((height - opts.header_height - opts.footer_height) / opts.row_height))
     local current = playlist_position(playlist)
-    if current ~= last_playlist_pos then
+    if current ~= last_playlist_pos or visible_rows ~= previous_visible_rows then
         ensure_current_visible(current, count)
         last_playlist_pos = current
     else
@@ -193,7 +221,7 @@ local function render()
     end
 
     set_margin(math.min(0.9, base_margin_right + pane_width / width))
-    publish_width(pane_width)
+    publish_width(pane_width * scale_x)
 
     local parts = {}
     append_rect(parts, pane_left, 0, width, height, "17191F", "08")
@@ -317,7 +345,7 @@ local function play_clicked_row()
     if not sidebar_visible then
         return
     end
-    local _, mouse_y = mp.get_mouse_pos()
+    local _, mouse_y = get_mouse_position()
     if not mouse_y or mouse_y < opts.header_height then
         return
     end
@@ -336,14 +364,13 @@ local function begin_click()
     if not sidebar_visible then
         return
     end
-    local mouse_x, mouse_y = mp.get_mouse_pos()
+    local mouse_x, mouse_y = get_mouse_position()
     if mouse_x and math.abs(mouse_x - pane_left) <= opts.resize_handle_width then
         dragging = true
         handle_hovered = true
         handle_mouse_y = mouse_y
         click_armed = false
-        local _, height = mp.get_osd_size()
-        update_interaction_area(window_width, height, true)
+        update_interaction_area(window_width, window_height, true)
         request_render()
         return
     end
@@ -371,7 +398,7 @@ local function resize_from_mouse()
     if not dragging then
         return
     end
-    local mouse_x = select(1, mp.get_mouse_pos())
+    local mouse_x = select(1, get_mouse_position())
     if not mouse_x or window_width <= 0 then
         return
     end
@@ -392,15 +419,14 @@ local function cancel_drag()
         dragging = false
         click_armed = false
     end
-    local _, height = mp.get_osd_size()
-    update_interaction_area(window_width, height, false)
+    update_interaction_area(window_width, window_height, false)
     if was_active then
         request_render()
     end
 end
 
 local function handle_mouse_move()
-    local mouse_x, mouse_y = mp.get_mouse_pos()
+    local mouse_x, mouse_y = get_mouse_position()
     if dragging then
         handle_mouse_y = mouse_y
         resize_from_mouse()
@@ -413,8 +439,7 @@ local function handle_mouse_move()
         handle_hovered = hovered
         handle_mouse_y = hovered and mouse_y or nil
         if changed then
-            local _, height = mp.get_osd_size()
-            update_interaction_area(window_width, height, hovered)
+            update_interaction_area(window_width, window_height, hovered)
         end
         request_render()
     end
@@ -445,7 +470,7 @@ mp.set_key_bindings({
 }, section, "force")
 mp.disable_key_bindings(section)
 
-for _, property in ipairs({"playlist", "playlist-pos", "fullscreen", "osd-dimensions", "user-data/javboss/playlist-titles"}) do
+for _, property in ipairs({"playlist", "playlist-pos", "fullscreen", "osd-dimensions", "display-hidpi-scale", "user-data/javboss/playlist-titles"}) do
     mp.observe_property(property, "native", request_render)
 end
 

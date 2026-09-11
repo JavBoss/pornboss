@@ -126,7 +126,7 @@ func TestBundledPlaylistSidebarIsPersistentAndInteractive(t *testing.T) {
 		`mp.set_property_number("video-margin-ratio-right", value)`,
 		`local left = math.max(0, pane_left - math.floor(opts.resize_handle_width / 2))`,
 		`mp.commandv("playlist-play-index", index - 1)`,
-		`publish_width(pane_width)`,
+		`publish_width(pane_width * scale_x)`,
 		`{"mbtn_left", end_click, begin_click}`,
 		`if mouse_x and math.abs(mouse_x - pane_left) <= opts.resize_handle_width then`,
 		`{"mouse_move", handle_mouse_move}`,
