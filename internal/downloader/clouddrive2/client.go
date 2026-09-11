@@ -3,7 +3,6 @@ package clouddrive2
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"javboss/internal/clouddrive"
@@ -29,25 +28,6 @@ func (c *Client) Test(ctx context.Context, folder string) (*downloader.TestResul
 	info, err := c.client.Test(ctx, folder)
 	if err != nil {
 		return nil, err
-	}
-	missing := make([]string, 0, 5)
-	if !info.CanList {
-		missing = append(missing, "allow_list")
-	}
-	if !info.CanCreateFolder {
-		missing = append(missing, "allow_create_folder")
-	}
-	if !info.CanRead {
-		missing = append(missing, "allow_read")
-	}
-	if !info.CanAddOffline {
-		missing = append(missing, "allow_add_offline_download")
-	}
-	if !info.CanListOffline {
-		missing = append(missing, "allow_list_offline_downloads")
-	}
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("CloudDrive2 API token is missing permissions: %s", strings.Join(missing, ", "))
 	}
 	if info.Folder == nil || !info.Folder.GetIsDirectory() || !info.Folder.GetCanOfflineDownload() {
 		return nil, errors.New("CloudDrive2 target folder does not support offline downloads")

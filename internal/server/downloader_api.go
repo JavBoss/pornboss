@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"javboss/internal/clouddrive"
 	"javboss/internal/db"
 	"javboss/internal/models"
 	"javboss/internal/runtimeconfig"
@@ -18,6 +19,8 @@ import (
 	"javboss/internal/util"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type downloaderSettingsResponse struct {
@@ -135,10 +138,39 @@ func testCloudDrive2(c *gin.Context) {
 	defer cancel()
 	result, err := service.TestDownloader(ctx, models.DownloaderProviderCloudDrive2)
 	if err != nil {
-		respondLocalizedError(c, http.StatusBadGateway, "下载器连接测试失败："+err.Error(), "Downloader connection test failed: "+err.Error())
+		messageZH, messageEN := cloudDrive2TestErrorMessages(err)
+		respondLocalizedError(c, http.StatusBadGateway, messageZH, messageEN)
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func cloudDrive2TestErrorMessages(err error) (string, string) {
+	var missing *clouddrive.MissingPermissionsError
+	if errors.As(err, &missing) {
+		labels := map[string][2]string{
+			"allow_list":                   {"列出文件", "list files"},
+			"allow_create_folder":          {"创建目录", "create folders"},
+			"allow_read":                   {"读取文件", "read files"},
+			"allow_add_offline_download":   {"添加离线下载", "add offline downloads"},
+			"allow_list_offline_downloads": {"查看离线下载", "list offline downloads"},
+		}
+		var zh, en []string
+		for _, permission := range missing.Permissions {
+			label, ok := labels[permission]
+			if !ok {
+				label = [2]string{permission, permission}
+			}
+			zh, en = append(zh, label[0]), append(en, label[1])
+		}
+		return "API 令牌权限不足，缺少：" + strings.Join(zh, "、") + "。请在 CloudDrive2 中编辑该令牌并开启相应权限。",
+			"The API token is missing permissions: " + strings.Join(en, ", ") + ". Edit this token in CloudDrive2 and enable these permissions."
+	}
+	if status.Code(err) == codes.PermissionDenied {
+		return "API 令牌权限不足或授权目录受限，请在 CloudDrive2 中检查令牌权限，并确认云端离线目录在授权范围内。",
+			"The API token lacks permission or has a restricted folder scope. Check its permissions in CloudDrive2 and ensure the remote offline folder is within the authorized scope."
+	}
+	return "下载器连接测试失败：" + err.Error(), "Downloader connection test failed: " + err.Error()
 }
 
 func loadDownloaderSettingsPayload(ctx context.Context) (*downloaderSettingsResponse, error) {
