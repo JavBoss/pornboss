@@ -4,6 +4,7 @@ bin
 internal/bin
 modernz
 data
+docker-data
 release
 screenshot
 temp

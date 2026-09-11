@@ -1,0 +1,24 @@
+name: javboss-local
+
+services:
+  javboss:
+    image: ${JAVBOSS_DOCKER_IMAGE:-javboss:local}
+    build:
+      context: .
+      args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+        GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
+        GOSUMDB: ${GOSUMDB:-sum.golang.org}
+    ports:
+      - "${JAVBOSS_DOCKER_PORT:-8655}:17654"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: ${JAVBOSS_DOCKER_DATA_DIR:-./docker-data}
+        target: /app/data
+      - type: bind
+        source: /
+        target: /host
+        read_only: true
+    restart: unless-stopped
