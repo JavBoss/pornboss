@@ -320,6 +320,7 @@ export default function DownloadsView() {
           ) : (
             <div className="mt-3 space-y-2">
               {jobs.map((job) => {
+                const completedWithSkips = job.status === 'completed' && !!job.error_message
                 const progress =
                   job.status === 'completed'
                     ? 100
@@ -343,16 +344,20 @@ export default function DownloadsView() {
                           </span>
                           <span
                             className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-4 ${
-                              job.status === 'completed'
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : job.status === 'failed'
-                                  ? 'bg-red-100 text-red-700'
-                                  : job.status === 'canceled'
-                                    ? 'bg-gray-100 text-gray-500'
-                                    : 'bg-blue-100 text-blue-700'
+                              completedWithSkips
+                                ? 'bg-amber-100 text-amber-700'
+                                : job.status === 'completed'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : job.status === 'failed'
+                                    ? 'bg-red-100 text-red-700'
+                                    : job.status === 'canceled'
+                                      ? 'bg-gray-100 text-gray-500'
+                                      : 'bg-blue-100 text-blue-700'
                             }`}
                           >
-                            {statusLabel(job.status)}
+                            {completedWithSkips
+                              ? zh('已完成（有文件跳过）', 'Completed with skipped files')
+                              : statusLabel(job.status)}
                           </span>
                           <span className="text-[10px] font-medium text-gray-500">
                             {formatTime(job.created_at)}
@@ -457,7 +462,9 @@ export default function DownloadsView() {
                       </>
                     ) : null}
                     {job.error_message ? (
-                      <div className="mt-1.5 break-words rounded-md bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
+                      <div
+                        className={`mt-1.5 break-words rounded-md px-2 py-1.5 text-[11px] ${completedWithSkips ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}
+                      >
                         {job.error_message}
                       </div>
                     ) : null}

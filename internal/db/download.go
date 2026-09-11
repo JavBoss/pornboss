@@ -324,18 +324,25 @@ func DeleteDownloadJob(ctx context.Context, id int64) error {
 	return nil
 }
 
-func CompleteDownloadJob(ctx context.Context, id int64, files []string, total int64) error {
+func CompleteDownloadJob(ctx context.Context, id int64, files []string, total int64, warning string) error {
+	if common.DB == nil {
+		return errors.New("complete download job: nil db")
+	}
+	if id <= 0 {
+		return nil
+	}
 	raw, err := json.Marshal(files)
 	if err != nil {
 		return fmt.Errorf("encode download job local files: %w", err)
 	}
 	now := time.Now().UTC()
-	return UpdateDownloadJob(ctx, id, map[string]any{
+	return common.DB.WithContext(ctx).Model(&models.DownloadJob{}).
+		Where("id = ? AND status <> ?", id, models.DownloadCanceled).Updates(map[string]any{
 		"status":           models.DownloadCompleted,
 		"bytes_total":      total,
 		"bytes_downloaded": total,
 		"local_files_json": string(raw),
-		"error_message":    "",
+		"error_message":    warning,
 		"completed_at":     &now,
-	})
+	}).Error
 }
