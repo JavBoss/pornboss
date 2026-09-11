@@ -16,6 +16,7 @@ func TestEnsureModernZAssetsCopiesScriptOptionsAndFont(t *testing.T) {
 		"thumbfast.conf":        "max_height=200\n",
 		"playlist_sidebar.lua":  "-- playlist sidebar lua\n",
 		"playlist_sidebar.conf": "width=280\n",
+		"window_geometry.lua":   "-- window geometry lua\n",
 	}
 	sourceDir := writeModernZTestAssets(t)
 
@@ -34,9 +35,10 @@ func TestEnsureModernZAssetsCopiesScriptOptionsAndFont(t *testing.T) {
 		filepath.Join(assets.ConfigDir, "script-opts", "thumbfast.conf"):        files["thumbfast.conf"],
 		filepath.Join(assets.ConfigDir, "scripts", "playlist_sidebar.lua"):      files["playlist_sidebar.lua"],
 		filepath.Join(assets.ConfigDir, "script-opts", "playlist_sidebar.conf"): files["playlist_sidebar.conf"],
-		assets.ScriptPath:          files["modernz.lua"],
-		assets.ThumbfastScriptPath: files["thumbfast.lua"],
-		assets.PlaylistScriptPath:  files["playlist_sidebar.lua"],
+		assets.ScriptPath:               files["modernz.lua"],
+		assets.ThumbfastScriptPath:      files["thumbfast.lua"],
+		assets.PlaylistScriptPath:       files["playlist_sidebar.lua"],
+		assets.WindowGeometryScriptPath: files["window_geometry.lua"],
 	}
 	for path, content := range expected {
 		got, err := os.ReadFile(path)
@@ -215,6 +217,7 @@ func writeModernZTestAssets(t *testing.T) string {
 		"thumbfast.conf":        "max_height=200\n",
 		"playlist_sidebar.lua":  "-- playlist sidebar lua\n",
 		"playlist_sidebar.conf": "width=280\n",
+		"window_geometry.lua":   "-- window geometry lua\n",
 	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(sourceDir, name), []byte(content), 0o644); err != nil {

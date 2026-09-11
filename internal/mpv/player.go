@@ -461,6 +461,9 @@ func buildCommandArgs(path string, options PlayOptions, ipcPath string) (*exec.C
 	args = append(args, "--script="+modernZ.ScriptPath)
 	args = append(args, "--script="+modernZ.ThumbfastScriptPath)
 	args = append(args, "--script="+modernZ.PlaylistScriptPath)
+	if runtime.GOOS == "darwin" {
+		args = append(args, "--script="+modernZ.WindowGeometryScriptPath)
+	}
 	if screenshotArgs, err := buildPlaybackScreenshotArgs(options); err != nil {
 		return nil, err
 	} else if len(screenshotArgs) > 0 {
