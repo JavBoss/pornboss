@@ -757,7 +757,7 @@ function mpvUrls(choice) {
     );
   } else if (choice.goos === "linux" && choice.goarch === "amd64") {
     urls.push(
-      "https://github.com/ivan-hc/MPV-appimage/releases/download/continuous/mpv-Media-Player_0.41.0-4-archimage5.0-x86_64.AppImage",
+      "https://github.com/ivan-hc/MPV-appimage/releases/download/continuous/mpv-Media-Player_0.41.0-6-archimage5.0-x86_64.AppImage",
     );
   } else if (choice.goos === "darwin" && choice.goarch === "amd64") {
     urls.push(
