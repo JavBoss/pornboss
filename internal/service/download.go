@@ -190,7 +190,7 @@ func newLocalDownloadLimiter(limit int) *localDownloadLimiter {
 }
 
 func normalizedLocalConcurrency(limit int) int {
-	if limit < 1 || limit > 5 {
+	if limit < 1 || limit > models.MaxLocalDownloadConcurrency {
 		return 2
 	}
 	return limit
@@ -341,7 +341,7 @@ func processDownloadJob(ctx context.Context, job *models.DownloadJob, localLimit
 	}
 	remoteFiles = filterSmallRemoteVideos(remoteFiles, downloadSettings.MinVideoSizeBytes)
 	if len(remoteFiles) == 0 {
-		return db.CompleteDownloadJob(ctx, job.ID, nil, 0)
+		return db.CompleteDownloadJob(ctx, job.ID, nil, 0, "")
 	}
 	var total int64
 	for _, file := range remoteFiles {
@@ -366,41 +366,77 @@ func processDownloadJob(ctx context.Context, job *models.DownloadJob, localLimit
 		return err
 	}
 
+	return downloadJobFiles(ctx, job, client, remoteFolder, remoteFiles)
+}
+
+// downloadJobFiles isolates file failures so later files still get a chance to
+// download. Cancellation and failures to persist task progress stop the task.
+func downloadJobFiles(ctx context.Context, job *models.DownloadJob, client downloader.Client, remoteFolder string, remoteFiles []downloader.RemoteFile) error {
+	localRoot := strings.TrimSpace(job.DownloadDirectory)
 	if err := os.MkdirAll(localRoot, 0o755); err != nil {
 		return fmt.Errorf("create local download directory: %w", err)
 	}
 	var completedBytes int64
 	localFiles := make([]string, 0, len(remoteFiles))
+	failedCount := 0
+	failureDetails := make([]string, 0, 3)
 	for _, remoteFile := range remoteFiles {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		remotePath := strings.TrimSpace(remoteFile.Path)
 		relative := remoteRelativePath(remoteFolder, remotePath, remoteFile.Name)
 		if remotePath == "" {
 			remotePath = path.Join(remoteFolder, relative)
 		}
-		target, err := safeLocalDownloadPath(localRoot, relative)
-		if err != nil {
-			return err
+		target, fileErr := safeLocalDownloadPath(localRoot, relative)
+		if fileErr == nil {
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				fileErr = fmt.Errorf("create local download subdirectory: %w", err)
+			}
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return fmt.Errorf("create local download subdirectory: %w", err)
-		}
-		fileBase := completedBytes
-		err = downloadRemoteFile(ctx, client, remoteFile, remotePath, target, func(fileDownloaded int64) error {
-			downloaded := fileBase + fileDownloaded
-			return db.UpdateDownloadJob(ctx, job.ID, map[string]any{
-				"bytes_downloaded": downloaded,
+		var progressErr error
+		var fileBytes int64
+		if fileErr == nil {
+			fileErr = downloadRemoteFile(ctx, client, remoteFile, remotePath, target, func(fileDownloaded int64) error {
+				fileBytes = fileDownloaded
+				progressErr = db.UpdateDownloadJob(ctx, job.ID, map[string]any{"bytes_downloaded": completedBytes + fileDownloaded})
+				return progressErr
 			})
-		})
-		if err != nil {
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
-		completedBytes += max64(remoteFile.Size, 0)
+		if progressErr != nil {
+			return progressErr
+		}
+		if fileErr != nil {
+			failedCount++
+			logging.Error("skip failed download file job=%d path=%s err=%v", job.ID, relative, fileErr)
+			if len(failureDetails) < 3 {
+				detail := []rune(fmt.Sprintf("%s: %v", relative, fileErr))
+				if len(detail) > 250 {
+					detail = append(detail[:250], '…')
+				}
+				failureDetails = append(failureDetails, string(detail))
+			}
+			// Do not include bytes belonging to a failed .part file in saved-file totals.
+			if err := db.UpdateDownloadJob(ctx, job.ID, map[string]any{"bytes_downloaded": completedBytes}); err != nil {
+				return err
+			}
+			continue
+		}
+		completedBytes += fileBytes
 		localFiles = append(localFiles, target)
 	}
-	if err := db.CompleteDownloadJob(ctx, job.ID, localFiles, total); err != nil {
-		return err
+	warning := ""
+	if failedCount > 0 {
+		warning = fmt.Sprintf("Skipped %d of %d files: %s", failedCount, len(remoteFiles), strings.Join(failureDetails, "; "))
+		if len(localFiles) == 0 {
+			return fmt.Errorf("all files failed: %s", warning)
+		}
 	}
-	return nil
+	return db.CompleteDownloadJob(ctx, job.ID, localFiles, completedBytes, warning)
 }
 
 func openDownloaderClient(ctx context.Context, provider string) (downloader.Client, string, error) {

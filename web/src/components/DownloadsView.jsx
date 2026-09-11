@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Pagination, Tooltip } from '@mui/material'
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
-import CheckOutlinedIcon from '@mui/icons-material/CheckOutlined'
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined'
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined'
 import ReplayOutlinedIcon from '@mui/icons-material/ReplayOutlined'
 import AppModal from '@/components/AppModal'
+import Toast from '@/components/Toast'
 import {
   cancelDownloadJob,
   createDownloadJob,
@@ -31,6 +33,7 @@ const statusLabels = {
   canceled: ['已取消', 'Canceled'],
 }
 
+const DOWNLOAD_PAGE_SIZE = 20
 const activeStatuses = new Set([
   'queued',
   'offline_downloading',
@@ -137,57 +140,77 @@ async function copyText(value) {
 
 export default function DownloadsView() {
   const [jobs, setJobs] = useState([])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [counts, setCounts] = useState({ active: 0, completed: 0, failed: 0 })
+  const [refreshVersion, setRefreshVersion] = useState(0)
+  const listRef = useRef(null)
+  const lastPage = Math.max(1, Math.ceil(total / DOWNLOAD_PAGE_SIZE))
   const [magnetUrl, setMagnetUrl] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [createError, setCreateError] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [busyJobIds, setBusyJobIds] = useState(() => new Set())
-  const [copiedJobId, setCopiedJobId] = useState(null)
+  const [copyToast, setCopyToast] = useState(null)
+  const closeCopyToast = useCallback(() => setCopyToast(null), [])
   const [error, setError] = useState('')
 
-  const loadJobs = useCallback(async () => {
-    const payload = await fetchDownloadJobs()
-    setJobs(Array.isArray(payload?.items) ? payload.items : [])
-  }, [])
-
   useEffect(() => {
-    let cancelled = false
-    loadJobs()
-      .catch((loadError) => {
-        if (!cancelled) setError(getErrorMessage(loadError))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
+    const controller = new AbortController()
+    let timer
+    setLoading(true)
+    setJobs([])
+    setError('')
+    const loadJobs = async () => {
+      try {
+        const payload = await fetchDownloadJobs({
+          limit: DOWNLOAD_PAGE_SIZE,
+          offset: (page - 1) * DOWNLOAD_PAGE_SIZE,
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted) return
+        const nextTotal = payload.total
+        const nextLastPage = Math.max(1, Math.ceil(nextTotal / DOWNLOAD_PAGE_SIZE))
+        setTotal(nextTotal)
+        setCounts(payload.counts)
+        if (page > nextLastPage) {
+          setPage(nextLastPage)
+          if (listRef.current) listRef.current.scrollTop = 0
+          return
+        }
+        setJobs(payload.items)
+        setError('')
+      } catch (loadError) {
+        if (!controller.signal.aborted) setError(getErrorMessage(loadError))
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+          timer = window.setTimeout(loadJobs, 3000)
+        }
+      }
     }
-  }, [loadJobs])
+    void loadJobs()
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [page, refreshVersion])
 
-  useEffect(() => {
-    const timer = window.setInterval(() => loadJobs().catch(() => {}), 3000)
-    return () => window.clearInterval(timer)
-  }, [loadJobs])
-
-  const counts = useMemo(() => {
-    let active = 0
-    let failed = 0
-    let completed = 0
-    jobs.forEach((job) => {
-      if (activeStatuses.has(job.status)) active += 1
-      else if (job.status === 'failed') failed += 1
-      else if (job.status === 'completed') completed += 1
-    })
-    return { active, failed, completed }
-  }, [jobs])
+  const refreshJobs = () => setRefreshVersion((current) => current + 1)
+  const goToPage = (nextPage) => {
+    if (nextPage === page) return
+    setLoading(true)
+    setPage(nextPage)
+    if (listRef.current) listRef.current.scrollTop = 0
+  }
 
   const runJobAction = async (job, action) => {
     setBusyJobIds((current) => new Set(current).add(job.id))
     setError('')
     try {
       await action(job.id)
-      await loadJobs()
+      refreshJobs()
     } catch (actionError) {
       setError(getErrorMessage(actionError))
     } finally {
@@ -209,7 +232,8 @@ export default function DownloadsView() {
       await createDownloadJob({ magnetUrl: value })
       setMagnetUrl('')
       setCreateOpen(false)
-      await loadJobs().catch((loadError) => setError(getErrorMessage(loadError)))
+      if (page === 1) refreshJobs()
+      else goToPage(1)
     } catch (submitError) {
       setCreateError(getErrorMessage(submitError))
     } finally {
@@ -230,219 +254,248 @@ export default function DownloadsView() {
   }
 
   const handleCopyMagnet = async (job) => {
-    setError('')
+    let message
     try {
       await copyText(job.magnet_url)
-      setCopiedJobId(job.id)
-      window.setTimeout(() => {
-        setCopiedJobId((current) => (current === job.id ? null : current))
-      }, 1500)
+      message = zh('已复制磁力链接', 'Magnet link copied')
     } catch (copyError) {
-      setError(getErrorMessage(copyError))
+      message = getErrorMessage(copyError)
     }
+    setCopyToast((current) => ({ id: (current?.id || 0) + 1, message }))
   }
 
   return (
-    <div className="space-y-5">
-      {error ? (
-        <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        ref={listRef}
+        className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4 pt-2 sm:px-5 sm:pb-5 sm:pt-3"
+      >
+        {error ? (
+          <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
 
-      <section>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
+        <section>
+          <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm text-gray-500">
               {zh(
                 `进行中 ${counts.active} · 已完成 ${counts.completed} · 失败 ${counts.failed}`,
                 `${counts.active} active · ${counts.completed} completed · ${counts.failed} failed`
               )}
             </p>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={openCreateModal}
+                aria-label={zh('新建下载任务', 'Create download job')}
+                title={zh('新建下载任务', 'Create download job')}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              >
+                <AddOutlinedIcon fontSize="inherit" />
+              </button>
+              <button
+                type="button"
+                onClick={refreshJobs}
+                aria-label={zh('刷新下载队列', 'Refresh download queue')}
+                title={zh('刷新下载队列', 'Refresh download queue')}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              >
+                <RefreshOutlinedIcon fontSize="inherit" />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={openCreateModal}
-              aria-label={zh('新建下载任务', 'Create download job')}
-              title={zh('新建下载任务', 'Create download job')}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-            >
-              <AddOutlinedIcon fontSize="small" />
-            </button>
-            <button
-              type="button"
-              onClick={() => loadJobs().catch((loadError) => setError(getErrorMessage(loadError)))}
-              aria-label={zh('刷新下载队列', 'Refresh download queue')}
-              title={zh('刷新下载队列', 'Refresh download queue')}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-            >
-              <RefreshOutlinedIcon fontSize="small" />
-            </button>
-          </div>
-        </div>
 
-        {loading ? (
-          <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
-            {zh('加载下载队列…', 'Loading download queue...')}
-          </div>
-        ) : jobs.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
-            {zh(
-              '队列为空，请点击右上角的新建按钮创建任务',
-              'The queue is empty. Use the create button above to add a job.'
-            )}
-          </div>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {jobs.map((job) => {
-              const progress =
-                job.status === 'completed'
-                  ? 100
-                  : job.bytes_total > 0
-                    ? Math.max(0, Math.min(100, (job.bytes_downloaded * 100) / job.bytes_total))
-                    : 0
-              const showLocalProgress = ['local_downloading', 'completed'].includes(job.status)
-              const busy = busyJobIds.has(job.id)
-              const terminal = ['completed', 'failed', 'canceled'].includes(job.status)
-              const localLocation = downloadLocation(job)
-              return (
-                <article
-                  key={job.id}
-                  className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
-                >
-                  <div className="flex flex-wrap items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-sm font-semibold text-gray-900">
-                          {job.magnet_name || zh('未命名磁力任务', 'Unnamed magnet download')}
-                        </span>
-                        <span
-                          className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-4 ${
-                            job.status === 'completed'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : job.status === 'failed'
-                                ? 'bg-red-100 text-red-700'
-                                : job.status === 'canceled'
-                                  ? 'bg-gray-100 text-gray-500'
-                                  : 'bg-blue-100 text-blue-700'
-                          }`}
+          {loading ? (
+            <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+              {zh('加载下载队列…', 'Loading download queue...')}
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+              {zh(
+                '队列为空，请点击上方的新建按钮创建任务',
+                'The queue is empty. Use the create button above to add a job.'
+              )}
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {jobs.map((job) => {
+                const completedWithSkips = job.status === 'completed' && !!job.error_message
+                const progress =
+                  job.status === 'completed'
+                    ? 100
+                    : job.bytes_total > 0
+                      ? Math.max(0, Math.min(100, (job.bytes_downloaded * 100) / job.bytes_total))
+                      : 0
+                const showLocalProgress = ['local_downloading', 'completed'].includes(job.status)
+                const busy = busyJobIds.has(job.id)
+                const terminal = ['completed', 'failed', 'canceled'].includes(job.status)
+                const localLocation = downloadLocation(job)
+                return (
+                  <article
+                    key={job.id}
+                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-sm font-semibold text-gray-900">
+                            {job.magnet_name || zh('未命名磁力任务', 'Unnamed magnet download')}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-4 ${
+                              completedWithSkips
+                                ? 'bg-amber-100 text-amber-700'
+                                : job.status === 'completed'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : job.status === 'failed'
+                                    ? 'bg-red-100 text-red-700'
+                                    : job.status === 'canceled'
+                                      ? 'bg-gray-100 text-gray-500'
+                                      : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            {completedWithSkips
+                              ? zh('已完成（有文件跳过）', 'Completed with skipped files')
+                              : statusLabel(job.status)}
+                            {job.error_message ? (
+                              <Tooltip
+                                arrow
+                                describeChild
+                                title={
+                                  <span className="whitespace-pre-wrap break-all">
+                                    {job.error_message}
+                                  </span>
+                                }
+                              >
+                                <button
+                                  type="button"
+                                  aria-label={zh('查看错误详情', 'View error details')}
+                                  className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-current focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
+                                >
+                                  <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                                </button>
+                              </Tooltip>
+                            ) : null}
+                          </span>
+                          <span className="text-[10px] font-medium text-gray-500">
+                            {formatTime(job.created_at)}
+                          </span>
+                        </div>
+                        <div
+                          className="mt-0.5 truncate text-[11px] text-gray-400"
+                          title={localLocation}
                         >
-                          {statusLabel(job.status)}
-                        </span>
-                        <span className="text-[10px] font-medium text-gray-500">
-                          {formatTime(job.created_at)}
-                        </span>
+                          {zh('下载位置：', 'Download location: ')}
+                          {localLocation}
+                        </div>
                       </div>
-                      <div
-                        className="mt-0.5 truncate text-[11px] text-gray-400"
-                        title={localLocation}
-                      >
-                        {zh('下载位置：', 'Download location: ')}
-                        {localLocation}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                      <button
-                        type="button"
-                        disabled={busy || !localLocation}
-                        onClick={() => runJobAction(job, revealDownloadLocation)}
-                        aria-label={zh('打开所在位置', 'Reveal in folder')}
-                        title={zh('打开所在位置', 'Reveal in folder')}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        <FolderOpenOutlinedIcon fontSize="inherit" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyMagnet(job)}
-                        aria-label={
-                          copiedJobId === job.id
-                            ? zh('已复制磁力链接', 'Magnet link copied')
-                            : zh('复制磁力链接', 'Copy magnet link')
-                        }
-                        title={
-                          copiedJobId === job.id
-                            ? zh('已复制磁力链接', 'Magnet link copied')
-                            : zh('复制磁力链接', 'Copy magnet link')
-                        }
-                        className={`inline-flex h-7 w-7 items-center justify-center rounded-md border text-[16px] ${
-                          copiedJobId === job.id
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        {copiedJobId === job.id ? (
-                          <CheckOutlinedIcon fontSize="inherit" />
-                        ) : (
-                          <ContentCopyOutlinedIcon fontSize="inherit" />
-                        )}
-                      </button>
-                      {['failed', 'canceled'].includes(job.status) ? (
+                      <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                         <button
                           type="button"
-                          disabled={busy}
-                          onClick={() => runJobAction(job, retryDownloadJob)}
-                          aria-label={zh('重试下载任务', 'Retry download job')}
-                          title={zh('重试下载任务', 'Retry download job')}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-[16px] text-blue-700 disabled:opacity-50"
-                        >
-                          <ReplayOutlinedIcon fontSize="inherit" />
-                        </button>
-                      ) : null}
-                      {activeStatuses.has(job.status) ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => runJobAction(job, cancelDownloadJob)}
-                          aria-label={zh('取消下载任务', 'Cancel download job')}
-                          title={zh('取消下载任务', 'Cancel download job')}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-[16px] text-amber-700 disabled:opacity-50"
-                        >
-                          <CancelOutlinedIcon fontSize="inherit" />
-                        </button>
-                      ) : null}
-                      {terminal ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => runJobAction(job, deleteDownloadJob)}
-                          aria-label={zh('移除下载记录', 'Remove download record')}
-                          title={zh('移除下载记录', 'Remove download record')}
+                          disabled={busy || !localLocation}
+                          onClick={() => runJobAction(job, revealDownloadLocation)}
+                          aria-label={zh('打开所在位置', 'Reveal in folder')}
+                          title={zh('打开所在位置', 'Reveal in folder')}
                           className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                         >
-                          <DeleteOutlineOutlinedIcon fontSize="inherit" />
+                          <FolderOpenOutlinedIcon fontSize="inherit" />
                         </button>
-                      ) : null}
-                    </div>
-                  </div>
-                  {showLocalProgress ? (
-                    <>
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-                        <div
-                          className="h-full rounded-full bg-blue-600 transition-all"
-                          style={{ width: `${progress}%` }}
-                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCopyMagnet(job)}
+                          aria-label={zh('复制磁力链接', 'Copy magnet link')}
+                          title={zh('复制磁力链接', 'Copy magnet link')}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50"
+                        >
+                          <ContentCopyOutlinedIcon fontSize="inherit" />
+                        </button>
+                        {['failed', 'canceled'].includes(job.status) ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => runJobAction(job, retryDownloadJob)}
+                            aria-label={zh('重试下载任务', 'Retry download job')}
+                            title={zh('重试下载任务', 'Retry download job')}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-[16px] text-blue-700 disabled:opacity-50"
+                          >
+                            <ReplayOutlinedIcon fontSize="inherit" />
+                          </button>
+                        ) : null}
+                        {activeStatuses.has(job.status) ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => runJobAction(job, cancelDownloadJob)}
+                            aria-label={zh('取消下载任务', 'Cancel download job')}
+                            title={zh('取消下载任务', 'Cancel download job')}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-[16px] text-amber-700 disabled:opacity-50"
+                          >
+                            <CancelOutlinedIcon fontSize="inherit" />
+                          </button>
+                        ) : null}
+                        {terminal ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => runJobAction(job, deleteDownloadJob)}
+                            aria-label={zh('移除下载记录', 'Remove download record')}
+                            title={zh('移除下载记录', 'Remove download record')}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            <DeleteOutlineOutlinedIcon fontSize="inherit" />
+                          </button>
+                        ) : null}
                       </div>
-                      <div className="mt-0.5 flex justify-between text-[11px] text-gray-400">
-                        <span>{progress.toFixed(1)}%</span>
-                        <span>
-                          {formatBytes(job.bytes_downloaded)} / {formatBytes(job.bytes_total)}
-                        </span>
-                      </div>
-                    </>
-                  ) : null}
-                  {job.error_message ? (
-                    <div className="mt-1.5 break-words rounded-md bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
-                      {job.error_message}
                     </div>
-                  ) : null}
-                </article>
-              )
-            })}
-          </div>
-        )}
-      </section>
+                    {showLocalProgress ? (
+                      <>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                          <div
+                            className="h-full rounded-full bg-blue-600 transition-all"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <div className="mt-0.5 flex justify-between text-[11px] text-gray-400">
+                          <span>{progress.toFixed(1)}%</span>
+                          <span>
+                            {formatBytes(job.bytes_downloaded)} / {formatBytes(job.bytes_total)}
+                          </span>
+                        </div>
+                      </>
+                    ) : null}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+      <footer className="flex shrink-0 items-center justify-center border-t border-slate-200 bg-white px-4 py-3">
+        <Pagination
+          page={page}
+          count={lastPage}
+          onChange={(_, nextPage) => goToPage(nextPage)}
+          size="small"
+          color="primary"
+          showFirstButton
+          showLastButton
+          siblingCount={0}
+          aria-label={zh('下载任务分页', 'Download task pages')}
+          getItemAriaLabel={(type, itemPage, selected) => {
+            if (type === 'page')
+              return selected
+                ? zh(`第 ${itemPage} 页，当前页`, `Page ${itemPage}, current page`)
+                : zh(`前往第 ${itemPage} 页`, `Go to page ${itemPage}`)
+            return {
+              first: zh('首页', 'First page'),
+              last: zh('末页', 'Last page'),
+              previous: zh('上一页', 'Previous page'),
+              next: zh('下一页', 'Next page'),
+            }[type]
+          }}
+        />
+      </footer>
 
       {createOpen ? (
         <AppModal
@@ -470,8 +523,8 @@ export default function DownloadsView() {
             </div>
             <p className="mt-1 text-sm text-gray-500">
               {zh(
-                '输入磁力链接后，通过 CloudDrive2 创建离线下载任务。',
-                'Enter a magnet link to create an offline download through CloudDrive2.'
+                '输入磁力链接后，通过 CloudDrive2 创建离线下载任务并下载到本地。',
+                'Enter a magnet link to create an offline download through CloudDrive2 and download the files locally.'
               )}
             </p>
             {createError ? (
@@ -512,6 +565,12 @@ export default function DownloadsView() {
           </form>
         </AppModal>
       ) : null}
+      <Toast
+        key={copyToast?.id}
+        open={!!copyToast}
+        message={copyToast?.message || ''}
+        onClose={closeCopyToast}
+      />
     </div>
   )
 }

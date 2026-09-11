@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"javboss/internal/common"
 	"javboss/internal/models"
@@ -69,11 +70,11 @@ func TestCreateDownloadJobAllowsRepeatedMagnet(t *testing.T) {
 	if count != 2 {
 		t.Fatalf("repeated download job count = %d, want 2", count)
 	}
-	jobs, err := ListDownloadJobs(context.Background(), 10)
+	jobs, err := ListDownloadJobs(context.Background(), 10, 0)
 	if err != nil {
 		t.Fatalf("list download jobs: %v", err)
 	}
-	if len(jobs) != 2 || jobs[0].MagnetURL != job.MagnetURL {
+	if len(jobs.Items) != 2 || jobs.Items[0].MagnetURL != job.MagnetURL {
 		t.Fatalf("listed download jobs = %#v", jobs)
 	}
 }
@@ -114,5 +115,72 @@ func TestCreateDownloadJobUsesForcedCloudDrive2Provider(t *testing.T) {
 	}
 	if err := CreateDownloadJob(context.Background(), job); err != nil {
 		t.Fatalf("create download job: %v", err)
+	}
+}
+
+func TestListDownloadJobsPaginationAndGlobalCounts(t *testing.T) {
+	database, err := Open(filepath.Join(t.TempDir(), "download-pages.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousDB := common.DB
+	common.DB = database
+	t.Cleanup(func() {
+		common.DB = previousDB
+		if sqlDB, err := database.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	empty, err := ListDownloadJobs(t.Context(), 20, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.Items == nil || len(empty.Items) != 0 || empty.Total != 0 || empty.Counts != (DownloadJobCounts{}) {
+		t.Fatalf("unexpected empty page: %+v", empty)
+	}
+	statuses := []string{models.DownloadQueued, models.DownloadOfflineDownloading, models.DownloadResolvingFiles, models.DownloadWaitingLocal, models.DownloadLocalDownloading, models.DownloadCompleted, models.DownloadFailed, models.DownloadCanceled}
+	jobs := make([]models.DownloadJob, 123)
+	// Matching timestamps exercise the stable ID ordering at page boundaries.
+	createdAt := time.Now().UTC()
+	for i := range jobs {
+		jobs[i] = models.DownloadJob{ID: int64(i + 1), Status: statuses[i%len(statuses)], CreatedAt: createdAt, MagnetURL: "magnet:test", LocalFilesJSON: `["/downloads/movie.mp4"]`}
+	}
+	if err := database.Create(&jobs).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name                  string
+		limit, offset, length int
+		firstID               int64
+	}{
+		{"first", 20, 0, 20, 123},
+		{"second", 20, 20, 20, 103},
+		{"past old 100 limit", 20, 100, 20, 23},
+		{"last partial page", 20, 120, 3, 3},
+		{"out of range", 20, 140, 0, 0},
+		{"negative offset", 20, -1, 20, 123},
+		{"default limit", 0, 0, 20, 123},
+		{"excessive limit", 501, 0, 20, 123},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			page, err := ListDownloadJobs(t.Context(), tt.limit, tt.offset)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.Total != 123 || page.Counts != (DownloadJobCounts{Active: 78, Completed: 15, Failed: 15}) {
+				t.Fatalf("incorrect global totals: %+v", page)
+			}
+			if len(page.Items) != tt.length {
+				t.Fatalf("length = %d, want %d", len(page.Items), tt.length)
+			}
+			for i, item := range page.Items {
+				if item.ID != tt.firstID-int64(i) {
+					t.Fatalf("item %d: id = %d", i, item.ID)
+				}
+				if item.MagnetURL != "magnet:test" || len(item.LocalFiles) != 1 || item.LocalFiles[0] != "/downloads/movie.mp4" {
+					t.Fatalf("missing task details: %+v", item)
+				}
+			}
+		})
 	}
 }

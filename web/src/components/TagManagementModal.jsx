@@ -444,15 +444,15 @@ export default function TagManagementModal({
     >
       <div className="flex shrink-0 items-center justify-between border-b border-slate-200/70 bg-slate-50/80 px-6 py-4">
         <h2 className="text-lg font-semibold text-slate-900">{zh('标签管理', 'Tag Management')}</h2>
-        <Button
+        <IconButton
+          type="button"
           size="small"
-          variant="text"
           onClick={onClose}
-          aria-label={zh('关闭', 'Close')}
-          sx={compactButtonSx}
+          aria-label={zh('关闭标签管理', 'Close tag management')}
+          title={zh('关闭', 'Close')}
         >
-          {zh('关闭', 'Close')}
-        </Button>
+          <CloseOutlinedIcon fontSize="small" />
+        </IconButton>
       </div>
       <div className="tag-management-modal-list min-h-0 flex-1 overflow-y-auto px-6 py-5">
         {tagLegend.length > 0 && (

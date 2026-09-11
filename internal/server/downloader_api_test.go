@@ -108,6 +108,22 @@ func TestCreateDownloadJobAcceptsManualMagnetOnly(t *testing.T) {
 		t.Fatalf("listed magnet URLs = %#v", payload.Items)
 	}
 
+	pagedResponse := httptest.NewRecorder()
+	router.ServeHTTP(pagedResponse, httptest.NewRequest(http.MethodGet, "/downloads?limit=1&offset=1", nil))
+	if pagedResponse.Code != http.StatusOK {
+		t.Fatalf("pagination status = %d: %s", pagedResponse.Code, pagedResponse.Body.String())
+	}
+	var page dbpkg.DownloadJobPage
+	if err := json.Unmarshal(pagedResponse.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 2 || page.Counts.Active != 2 || len(page.Items) != 1 || page.Items[0].ID != job.ID {
+		t.Fatalf("unexpected paginated response: %+v", page)
+	}
+	if pagedResponse.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("task pages must not be cached")
+	}
+
 	preflightResponse := httptest.NewRecorder()
 	preflightRequest := httptest.NewRequest(http.MethodOptions, "/extension/downloads", nil)
 	preflightRequest.Header.Set("Origin", javBossExtensionOrigin)
@@ -178,5 +194,43 @@ func TestDownloadRevealTargetFallsBackToConfiguredDirectory(t *testing.T) {
 
 	if target := downloadRevealTarget(job); target != filepath.Clean(root) {
 		t.Fatalf("reveal target = %q, want %q", target, root)
+	}
+}
+
+func TestUpdateDownloaderSettingsConcurrencyRange(t *testing.T) {
+	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "concurrency-api.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousDB := common.DB
+	common.DB = database
+	t.Cleanup(func() {
+		common.DB = previousDB
+		if sqlDB, err := database.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.PUT("/downloader/settings", updateDownloaderSettings)
+	directory := t.TempDir()
+	for _, concurrency := range []int{-1, 0, 1, 2, 3, 4, 5} {
+		body, err := json.Marshal(map[string]any{
+			"download_directory": directory, "local_concurrency": concurrency, "min_video_size_mb": 50,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := httptest.NewRequest(http.MethodPut, "/downloader/settings", strings.NewReader(string(body)))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		wantStatus := http.StatusOK
+		if concurrency < 1 || concurrency > 3 {
+			wantStatus = http.StatusBadRequest
+		}
+		if response.Code != wantStatus {
+			t.Fatalf("concurrency %d: status = %d, want %d, body = %s", concurrency, response.Code, wantStatus, response.Body.String())
+		}
 	}
 }
