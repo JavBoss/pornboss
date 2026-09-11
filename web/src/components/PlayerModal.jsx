@@ -329,7 +329,7 @@ export default function PlayerModal({
             onClick={onClose}
             className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
-            <CloseRoundedIcon sx={{ fontSize: 14 }} />
+            <CloseRoundedIcon sx={{ fontSize: 16 }} />
           </button>
         </header>
         <div className="player-shell relative w-full bg-black">
