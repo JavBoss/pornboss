@@ -107,7 +107,7 @@ func TestBundledPlaylistSidebarIsPersistentAndInteractive(t *testing.T) {
 		"width=320\n",
 		"min_width=240\n",
 		"resize_handle_width=10\n",
-		"font_size=22\n",
+		"font_size=20\n",
 		"font=auto\n",
 		"auto_hide_single=yes\n",
 		"hide_fullscreen=yes\n",
