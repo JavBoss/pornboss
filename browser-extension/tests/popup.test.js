@@ -191,7 +191,7 @@ test("connection inputs save immediately and enabling requests host access", asy
   const harness = createHarness();
   await new Promise((resolve) => setImmediate(resolve));
   harness.elements.get("server-url").value =
-    " https://192.168.1.20:17654/javboss/ ";
+    " http://192.168.1.20:17654/javboss/ ";
   await harness.elements.get("server-url").listeners.input();
   harness.elements.get("server-token").value = TEST_TOKEN;
   await harness.elements.get("server-token").listeners.input();
@@ -199,9 +199,13 @@ test("connection inputs save immediately and enabling requests host access", asy
   harness.elements.get("enabled").checked = true;
   await harness.elements.get("enabled").listeners.change();
   assert.deepEqual(JSON.parse(JSON.stringify(harness.permissionRequests)), [
-    { origins: ["https://192.168.1.20/*"] },
+    { origins: ["http://192.168.1.20/*"] },
   ]);
   const saved = harness.storedValues.at(-1);
+  assert.equal(
+    saved["javboss:connection-settings"].serverUrl,
+    "http://192.168.1.20:17654/javboss",
+  );
   assert.equal(saved["javboss:connection-settings"].apiToken, TEST_TOKEN);
   assert.deepEqual(
     JSON.parse(JSON.stringify(saved["javboss:magnet-download-settings"])),
@@ -269,12 +273,13 @@ test("connection test checks current inputs without enabling downloads or writin
     magnetSettings: { serverUrl: "https://old.example", enabled: false },
   });
   await new Promise((resolve) => setImmediate(resolve));
-  harness.elements.get("server-url").value = " https://boss.example/javboss/ ";
+  harness.elements.get("server-url").value =
+    " http://nas.local:17654/javboss/ ";
   harness.elements.get("server-token").value = TEST_TOKEN;
   await harness.elements.get("test-connection").listeners.click();
   assert.equal(harness.fetchCalls.length, 1);
   const { url, options } = harness.fetchCalls[0];
-  assert.equal(url, "https://boss.example/javboss/extension/status");
+  assert.equal(url, "http://nas.local:17654/javboss/extension/status");
   assert.equal(options.headers.Authorization, `Bearer ${TEST_TOKEN}`);
   assert.equal(options.headers.Accept, "application/json");
   assert.equal(options.credentials, "omit");
@@ -282,7 +287,7 @@ test("connection test checks current inputs without enabling downloads or writin
   assert.equal(options.cache, "no-store");
   assert.ok(options.signal instanceof AbortSignal);
   assert.deepEqual(JSON.parse(JSON.stringify(harness.permissionRequests)), [
-    { origins: ["https://boss.example/*"] },
+    { origins: ["http://nas.local/*"] },
   ]);
   assert.equal(harness.storedValues.length, 0);
   assert.equal(harness.elements.get("enabled").checked, false);
@@ -361,7 +366,7 @@ test("connection timeout aborts stalled requests and response bodies and restore
 test("connection test rejects invalid input and permission or storage failures before fetching", async () => {
   for (const scenario of [
     { url: "", token: TEST_TOKEN },
-    { url: "http://remote.example", token: TEST_TOKEN },
+    { url: "ftp://remote.example", token: TEST_TOKEN },
     { url: "https://boss.example", token: "invalid" },
     {
       url: "https://boss.example",

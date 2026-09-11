@@ -6,7 +6,14 @@ import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
 import { collectJavVideos, fetchAllJavItems, javBulkQuery } from '@/utils/javSelection'
 
-export default function useJavSelection({ items, mpvEnabled, playVideos, showToast, showError }) {
+export default function useJavSelection({
+  items,
+  mpvEnabled,
+  ensurePlayAvailable,
+  playVideos,
+  showToast,
+  showError,
+}) {
   const [selection, setSelection] = useState(() => new Map())
   const [opsOpen, setOpsOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
@@ -124,6 +131,7 @@ export default function useJavSelection({ items, mpvEnabled, playVideos, showToa
 
   const play = (getItems) => {
     if (!mpvEnabled) return
+    if (!ensurePlayAvailable()) return
     return runAction('play', async () => playItems(await getItems()))
   }
 

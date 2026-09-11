@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -441,6 +442,9 @@ func buildConfigContent() (string, error) {
 		"video-align-y=0",
 		"video-margin-ratio-bottom=0.105",
 		"watch-later-options-remove=sub-pos,osd-margin-y",
+	}
+	if runtime.GOOS == "darwin" {
+		lines = append(lines, "border=no")
 	}
 	lines = append(lines,
 		"auto-window-resize=no",

@@ -20,13 +20,15 @@ var modernZRequiredFiles = []struct {
 	{source: "thumbfast.conf", target: filepath.Join("script-opts", "thumbfast.conf")},
 	{source: "playlist_sidebar.lua", target: filepath.Join("scripts", "playlist_sidebar.lua")},
 	{source: "playlist_sidebar.conf", target: filepath.Join("script-opts", "playlist_sidebar.conf")},
+	{source: "window_geometry.lua", target: filepath.Join("scripts", "window_geometry.lua")},
 }
 
 type modernZAssets struct {
-	ConfigDir           string
-	ScriptPath          string
-	ThumbfastScriptPath string
-	PlaylistScriptPath  string
+	ConfigDir                string
+	ScriptPath               string
+	ThumbfastScriptPath      string
+	PlaylistScriptPath       string
+	WindowGeometryScriptPath string
 }
 
 func ensureModernZAssets() (modernZAssets, error) {
@@ -49,10 +51,11 @@ func ensureModernZAssets() (modernZAssets, error) {
 	}
 
 	return modernZAssets{
-		ConfigDir:           configDir,
-		ScriptPath:          filepath.Join(configDir, "scripts", "modernz.lua"),
-		ThumbfastScriptPath: filepath.Join(configDir, "scripts", "thumbfast.lua"),
-		PlaylistScriptPath:  filepath.Join(configDir, "scripts", "playlist_sidebar.lua"),
+		ConfigDir:                configDir,
+		ScriptPath:               filepath.Join(configDir, "scripts", "modernz.lua"),
+		ThumbfastScriptPath:      filepath.Join(configDir, "scripts", "thumbfast.lua"),
+		PlaylistScriptPath:       filepath.Join(configDir, "scripts", "playlist_sidebar.lua"),
+		WindowGeometryScriptPath: filepath.Join(configDir, "scripts", "window_geometry.lua"),
 	}, nil
 }
 
