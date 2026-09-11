@@ -162,7 +162,7 @@ func updatedProviderToken(current string, requested *string, clear bool) string 
 	if clear {
 		return ""
 	}
-	if requested != nil && strings.TrimSpace(*requested) != "" {
+	if requested != nil {
 		return strings.TrimSpace(*requested)
 	}
 	return current

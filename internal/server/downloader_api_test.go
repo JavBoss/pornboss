@@ -18,6 +18,82 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func TestCloudDrive2TokenSaveAndReload(t *testing.T) {
+	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "provider-token.db"))
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	previousDB := common.DB
+	common.DB = database
+	t.Cleanup(func() {
+		common.DB = previousDB
+		if sqlDB, dbErr := database.DB(); dbErr == nil {
+			_ = sqlDB.Close()
+		}
+	})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.PUT("/downloader/clouddrive2", updateCloudDrive2Settings)
+	router.GET("/downloader/clouddrive2/token", getCloudDrive2Token)
+
+	for _, tc := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "omitted token preserves existing value", body: `{}`, want: "stored-token"},
+		{name: "unchanged token is preserved", body: `{"api_token":"stored-token"}`, want: "stored-token"},
+		{name: "empty token clears existing value", body: `{"api_token":""}`, want: ""},
+		{name: "whitespace token clears existing value", body: `{"api_token":"   "}`, want: ""},
+		{name: "replacement is trimmed", body: `{"api_token":" new-token "}`, want: "new-token"},
+		{name: "explicit clear remains supported", body: `{"api_token":"new-token","clear_api_token":true}`, want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := dbpkg.SaveDownloaderProviderSettings(t.Context(), &models.DownloaderProviderSettings{
+				Provider: models.DownloaderProviderCloudDrive2, APIToken: "stored-token",
+			}); err != nil {
+				t.Fatalf("save initial token: %v", err)
+			}
+			request := httptest.NewRequest(http.MethodPut, "/downloader/clouddrive2", strings.NewReader(tc.body))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			if response.Code != http.StatusOK {
+				t.Fatalf("save status = %d; body=%s", response.Code, response.Body.String())
+			}
+			var settings downloaderSettingsResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &settings); err != nil {
+				t.Fatal(err)
+			}
+			if settings.TokenConfigured != (tc.want != "") {
+				t.Fatalf("token_configured = %t, want %t", settings.TokenConfigured, tc.want != "")
+			}
+			stored, err := dbpkg.GetDownloaderProviderSettings(t.Context(), models.DownloaderProviderCloudDrive2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stored.APIToken != tc.want {
+				t.Fatalf("stored token = %q, want %q", stored.APIToken, tc.want)
+			}
+			reloaded := httptest.NewRecorder()
+			router.ServeHTTP(reloaded, httptest.NewRequest(http.MethodGet, "/downloader/clouddrive2/token", nil))
+			if reloaded.Code != http.StatusOK {
+				t.Fatalf("reload status = %d", reloaded.Code)
+			}
+			var token struct {
+				APIToken string `json:"api_token"`
+			}
+			if err := json.Unmarshal(reloaded.Body.Bytes(), &token); err != nil {
+				t.Fatal(err)
+			}
+			if token.APIToken != tc.want {
+				t.Fatalf("reloaded token = %q, want %q", token.APIToken, tc.want)
+			}
+		})
+	}
+}
+
 func TestCreateDownloadJobAcceptsManualMagnetOnly(t *testing.T) {
 	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "download-api.db"))
 	if err != nil {

@@ -54,13 +54,13 @@ export default function DownloaderSettingsView() {
 
   useEffect(() => {
     let cancelled = false
-    fetchDownloaderSettings()
-      .then((nextSettings) => {
+    Promise.all([fetchDownloaderSettings(), fetchCloudDrive2Token()])
+      .then(([nextSettings, token]) => {
         if (cancelled) return
         setSettings(nextSettings)
         setForm({
           address: nextSettings?.address || defaultForm.address,
-          apiToken: '',
+          apiToken: token?.api_token || '',
           remoteFolder: nextSettings?.remote_folder || '',
           downloadDirectory: nextSettings?.download_directory || '',
           localConcurrency: Number(nextSettings?.local_concurrency) || 2,
@@ -86,11 +86,10 @@ export default function DownloaderSettingsView() {
     const payload = {
       address: form.address.trim(),
       remote_folder: form.remoteFolder.trim(),
+      api_token: form.apiToken.trim(),
     }
-    if (form.apiToken.trim()) payload.api_token = form.apiToken.trim()
     const saved = await updateCloudDrive2Settings(payload)
     setSettings(saved)
-    setForm((current) => ({ ...current, apiToken: '' }))
     setTokenVisible(false)
     void checkCloudDrive2()
     return saved
@@ -138,28 +137,6 @@ export default function DownloaderSettingsView() {
     )
   }
 
-  const handleTokenVisibility = async () => {
-    if (tokenVisible) {
-      setTokenVisible(false)
-      return
-    }
-    if (form.apiToken || !settings?.token_configured) {
-      setTokenVisible(true)
-      return
-    }
-    setAction('token')
-    setError('')
-    try {
-      const result = await fetchCloudDrive2Token()
-      updateForm('apiToken', result?.api_token || '')
-      setTokenVisible(true)
-    } catch (loadError) {
-      setError(getErrorMessage(loadError))
-    } finally {
-      setAction('')
-    }
-  }
-
   if (loading) {
     return (
       <div className="rounded-xl border border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
@@ -168,7 +145,7 @@ export default function DownloaderSettingsView() {
     )
   }
 
-  const busy = Boolean(action)
+  const busy = Boolean(action) || !settings
   const cloudDrive2StatusDisplay =
     cloudDrive2Status === 'available'
       ? {
@@ -371,18 +348,17 @@ export default function DownloaderSettingsView() {
                     type={tokenVisible ? 'text' : 'password'}
                     value={form.apiToken}
                     onChange={(event) => updateForm('apiToken', event.target.value)}
-                    placeholder={
-                      settings?.token_configured
-                        ? zh('已配置；留空保持不变', 'Configured; leave blank to keep it')
-                        : zh('请输入 API Token', 'Enter an API token')
-                    }
+                    placeholder={zh(
+                      '在 CloudDrive2 中创建 API 令牌，建议给予令牌完整权限',
+                      'Create an API token in CloudDrive2; granting full permissions is recommended'
+                    )}
                     autoComplete="new-password"
                     className="h-9 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-11 text-xs outline-none focus:border-blue-500"
                   />
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={handleTokenVisibility}
+                    onClick={() => setTokenVisible((visible) => !visible)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-50"
                     aria-label={
                       tokenVisible ? zh('隐藏 Token', 'Hide token') : zh('显示 Token', 'Show token')
