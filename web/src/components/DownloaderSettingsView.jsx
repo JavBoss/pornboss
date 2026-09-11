@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Tooltip } from '@mui/material'
 import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'
+import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
@@ -341,17 +343,32 @@ export default function DownloaderSettingsView() {
                   className="mt-1 h-9 w-full rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500"
                 />
               </label>
-              <label className="text-xs font-medium text-gray-600 lg:col-span-2">
-                API Token
+              <div className="text-xs font-medium text-gray-600 lg:col-span-2">
+                <div className="flex items-center gap-1">
+                  <label htmlFor="clouddrive2-api-token">API Token</label>
+                  <Tooltip
+                    arrow
+                    describeChild
+                    title={zh(
+                      '在 CloudDrive2 中创建 API 令牌，至少需要开启以下权限：列出文件、创建目录、读取文件、添加离线下载、查看离线下载',
+                      'Create an API token in CloudDrive2 and enable at least the following permissions: list files, create folders, read files, add offline downloads, and list offline downloads'
+                    )}
+                  >
+                    <button
+                      type="button"
+                      aria-label={zh('API 令牌所需权限', 'Required API token permissions')}
+                      className="inline-flex rounded-full text-gray-400 hover:text-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                    >
+                      <HelpOutlineRoundedIcon sx={{ fontSize: 14 }} />
+                    </button>
+                  </Tooltip>
+                </div>
                 <div className="relative mt-1">
                   <input
+                    id="clouddrive2-api-token"
                     type={tokenVisible ? 'text' : 'password'}
                     value={form.apiToken}
                     onChange={(event) => updateForm('apiToken', event.target.value)}
-                    placeholder={zh(
-                      '在 CloudDrive2 中创建 API 令牌，建议给予令牌完整权限',
-                      'Create an API token in CloudDrive2; granting full permissions is recommended'
-                    )}
                     autoComplete="new-password"
                     className="h-9 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-11 text-xs outline-none focus:border-blue-500"
                   />
@@ -371,7 +388,7 @@ export default function DownloaderSettingsView() {
                     )}
                   </button>
                 </div>
-              </label>
+              </div>
             </div>
             <div className="mt-auto flex justify-end border-t border-gray-100 pt-3">
               <button
