@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Pagination, Tooltip } from '@mui/material'
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
-import CheckOutlinedIcon from '@mui/icons-material/CheckOutlined'
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined'
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
@@ -11,6 +10,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined'
 import ReplayOutlinedIcon from '@mui/icons-material/ReplayOutlined'
 import AppModal from '@/components/AppModal'
+import Toast from '@/components/Toast'
 import {
   cancelDownloadJob,
   createDownloadJob,
@@ -152,7 +152,8 @@ export default function DownloadsView() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [busyJobIds, setBusyJobIds] = useState(() => new Set())
-  const [copiedJobId, setCopiedJobId] = useState(null)
+  const [copyToast, setCopyToast] = useState(null)
+  const closeCopyToast = useCallback(() => setCopyToast(null), [])
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -253,16 +254,14 @@ export default function DownloadsView() {
   }
 
   const handleCopyMagnet = async (job) => {
-    setError('')
+    let message
     try {
       await copyText(job.magnet_url)
-      setCopiedJobId(job.id)
-      window.setTimeout(() => {
-        setCopiedJobId((current) => (current === job.id ? null : current))
-      }, 1500)
+      message = zh('已复制磁力链接', 'Magnet link copied')
     } catch (copyError) {
-      setError(getErrorMessage(copyError))
+      message = getErrorMessage(copyError)
     }
+    setCopyToast((current) => ({ id: (current?.id || 0) + 1, message }))
   }
 
   return (
@@ -405,27 +404,11 @@ export default function DownloadsView() {
                         <button
                           type="button"
                           onClick={() => handleCopyMagnet(job)}
-                          aria-label={
-                            copiedJobId === job.id
-                              ? zh('已复制磁力链接', 'Magnet link copied')
-                              : zh('复制磁力链接', 'Copy magnet link')
-                          }
-                          title={
-                            copiedJobId === job.id
-                              ? zh('已复制磁力链接', 'Magnet link copied')
-                              : zh('复制磁力链接', 'Copy magnet link')
-                          }
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded-md border text-[16px] ${
-                            copiedJobId === job.id
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                          }`}
+                          aria-label={zh('复制磁力链接', 'Copy magnet link')}
+                          title={zh('复制磁力链接', 'Copy magnet link')}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50"
                         >
-                          {copiedJobId === job.id ? (
-                            <CheckOutlinedIcon fontSize="inherit" />
-                          ) : (
-                            <ContentCopyOutlinedIcon fontSize="inherit" />
-                          )}
+                          <ContentCopyOutlinedIcon fontSize="inherit" />
                         </button>
                         {['failed', 'canceled'].includes(job.status) ? (
                           <button
@@ -582,6 +565,12 @@ export default function DownloadsView() {
           </form>
         </AppModal>
       ) : null}
+      <Toast
+        key={copyToast?.id}
+        open={!!copyToast}
+        message={copyToast?.message || ''}
+        onClose={closeCopyToast}
+      />
     </div>
   )
 }
