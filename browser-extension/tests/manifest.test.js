@@ -112,6 +112,17 @@ test("bridge resources are web accessible without broad host permissions", () =>
   assert.deepEqual(magnetScript.matches, ["http://*/*", "https://*/*"]);
   assert.equal(magnetScript.run_at, "document_start");
   assert.equal(magnetScript.all_frames, true);
+  const ownership = manifest.content_scripts.find((entry) =>
+    entry.js.includes("content/jav-ownership.js"),
+  );
+  assert.deepEqual(ownership.matches, [
+    "https://javdb.com/*",
+    "https://www.javbus.com/*",
+    "https://www.javlibrary.com/*",
+  ]);
+  assert.equal(ownership.run_at, "document_idle");
+  assert.notEqual(ownership.all_frames, true);
+  assert.deepEqual(ownership.css, ["content/jav-ownership.css"]);
 });
 
 test("JavBus opens in a new tab instead of a popup window", () => {

@@ -35,11 +35,15 @@ function createHarness(options = {}) {
   if (options.javDBSettings) {
     localData.set("javboss:javdb-settings", options.javDBSettings);
   }
+  if (options.ownershipSettings) {
+    localData.set("javboss:ownership-settings", options.ownershipSettings);
+  }
   const listeners = {};
   const sentMessages = [];
   const createdTabs = [];
   const updatedTabs = [];
   const fetchCalls = [];
+  const tabQueries = [];
 
   const sessionStorage = {
     async get(keys) {
@@ -95,7 +99,10 @@ function createHarness(options = {}) {
       },
     },
     tabs: {
-      query: async () => [{ id: 2 }],
+      query: async (query) => {
+        tabQueries.push(query);
+        return [{ id: 2 }];
+      },
       create: async (properties) => {
         createdTabs.push(properties);
         return { id: 10 };
@@ -114,14 +121,22 @@ function createHarness(options = {}) {
 
   const fetch = async (url, init) => {
     fetchCalls.push({ url, options: init });
+    if (options.fetchFailure) throw new Error("network failure");
     return {
       ok: !options.responseStatus || options.responseStatus < 400,
       status: options.responseStatus || 201,
-      json: async () => ({}),
+      json: async () => options.responsePayload || {},
     };
   };
 
-  vm.runInNewContext(source, { chrome, fetch, URL });
+  vm.runInNewContext(source, {
+    chrome,
+    fetch,
+    URL,
+    AbortController,
+    setTimeout,
+    clearTimeout,
+  });
 
   async function send(message, tab) {
     return new Promise((resolve) => {
@@ -140,6 +155,7 @@ function createHarness(options = {}) {
     createdTabs,
     data,
     fetchCalls,
+    tabQueries,
     listeners,
     send,
     sentMessages,
@@ -627,6 +643,10 @@ test("downloads use the latest connection pair and never expose it in change not
   assert.deepEqual(plain(harness.sentMessages), [
     {
       tabId: 2,
+      message: { type: "JAVBOSS_JAV_OWNERSHIP_REFRESH" },
+    },
+    {
+      tabId: 2,
       message: { type: "JAVBOSS_MAGNET_SETTINGS_CHANGED", enabled: true },
     },
   ]);
@@ -646,4 +666,183 @@ test("downloads use the latest connection pair and never expose it in change not
     harness.fetchCalls[0].options.headers.Authorization,
     `Bearer ${nextToken}`,
   );
+});
+
+test("ownership batches use connection credentials without enabling downloads", async () => {
+  const harness = createHarness({
+    connectionSettings: {
+      serverUrl: "https://boss.example/javboss",
+      apiToken: TEST_TOKEN,
+    },
+    responsePayload: {
+      items: [
+        { code: "ABC-123", owned: true, private_path: "/secret" },
+        { code: "ABC-124", owned: false },
+      ],
+    },
+  });
+  const response = await harness.send(
+    { type: "JAVBOSS_JAV_OWNERSHIP", codes: ["ABC-123", "ABC-124", "ABC-123"] },
+    { id: 2, url: "https://javdb.com/" },
+  );
+  assert.deepEqual(plain(response), {
+    ok: true,
+    items: [
+      { code: "ABC-123", owned: true },
+      { code: "ABC-124", owned: false },
+    ],
+  });
+  const { url, options } = harness.fetchCalls[0];
+  assert.equal(url, "https://boss.example/javboss/extension/jav/ownership");
+  assert.equal(options.headers.Authorization, `Bearer ${TEST_TOKEN}`);
+  assert.equal(options.credentials, "omit");
+  assert.equal(options.redirect, "error");
+  assert.equal(options.method, "POST");
+  assert.deepEqual(JSON.parse(options.body), { codes: ["ABC-123", "ABC-124"] });
+  assert.ok(options.signal instanceof AbortSignal);
+});
+
+test("ownership rejects other sites and malformed batches before fetching", async () => {
+  const harness = createHarness({
+    connectionSettings: {
+      serverUrl: "https://boss.example",
+      apiToken: TEST_TOKEN,
+    },
+  });
+  for (const url of [
+    "https://javdb.com.evil.example/",
+    "https://www.javbus.com.evil.example/",
+    "https://www.javlibrary.com.evil.example/",
+    "https://avsox.click/",
+    "http://javdb.com/",
+    "",
+  ]) {
+    const response = await harness.send(
+      { type: "JAVBOSS_JAV_OWNERSHIP", codes: ["ABC-123"] },
+      { id: 2, url },
+    );
+    assert.equal(response.ok, false);
+  }
+  for (const codes of [
+    null,
+    [],
+    [123],
+    [""],
+    ["ABC%"],
+    ["A".repeat(129)],
+    Array(201).fill("ABC-123"),
+  ]) {
+    const response = await harness.send(
+      { type: "JAVBOSS_JAV_OWNERSHIP", codes },
+      { id: 2, url: "https://javdb.com/" },
+    );
+    assert.equal(response.ok, false);
+  }
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("ownership accepts JavBus and JavLibrary and refreshes all supported sites", async () => {
+  const harness = createHarness({
+    connectionSettings: {
+      serverUrl: "https://boss.example",
+      apiToken: TEST_TOKEN,
+    },
+    responsePayload: { items: [{ code: "IPX-228", owned: true }] },
+  });
+  for (const url of [
+    "https://www.javbus.com/IPX-228",
+    "https://www.javlibrary.com/cn/?v=test",
+  ]) {
+    const response = await harness.send(
+      { type: "JAVBOSS_JAV_OWNERSHIP", codes: ["IPX-228"] },
+      { id: 2, url },
+    );
+    assert.deepEqual(plain(response), {
+      ok: true,
+      items: [{ code: "IPX-228", owned: true }],
+    });
+  }
+  harness.listeners.storage({ "javboss:connection-settings": {} }, "local");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(plain(harness.tabQueries.find((query) => query.url)?.url), [
+    "https://javdb.com/*",
+    "https://www.javbus.com/*",
+    "https://www.javlibrary.com/*",
+  ]);
+});
+
+test("ownership never turns missing configuration, server errors or incomplete responses into unowned results", async () => {
+  for (const options of [
+    { connectionSettings: {} },
+    { responseStatus: 401 },
+    { responseStatus: 404 },
+    { fetchFailure: true },
+    { responsePayload: {} },
+    { responsePayload: { items: [{ code: "ABC-123", owned: "false" }] } },
+    { responsePayload: { items: [{ code: "ABC-124", owned: true }] } },
+    { storageFailure: true },
+  ]) {
+    const harness = createHarness({
+      connectionSettings: {
+        serverUrl: "https://boss.example",
+        apiToken: TEST_TOKEN,
+      },
+      ...options,
+    });
+    const response = await harness.send(
+      { type: "JAVBOSS_JAV_OWNERSHIP", codes: ["ABC-123"] },
+      { id: 2, url: "https://javdb.com/v/test" },
+    );
+    assert.equal(response.ok, false);
+    assert.equal(typeof response.error, "string");
+    assert.equal(response.items, undefined);
+    assert.equal(JSON.stringify(response).includes(TEST_TOKEN), false);
+  }
+});
+
+test("disabled ownership skips server requests and broadcasts only the preference", async () => {
+  const harness = createHarness({
+    connectionSettings: {
+      serverUrl: "https://boss.example",
+      apiToken: TEST_TOKEN,
+    },
+    ownershipSettings: { enabled: false },
+    responsePayload: { items: [{ code: "ABC-123", owned: true }] },
+  });
+  const message = { type: "JAVBOSS_JAV_OWNERSHIP", codes: ["ABC-123"] };
+  const sender = { id: 2, url: "https://javdb.com/" };
+  assert.deepEqual(plain(await harness.send(message, sender)), {
+    ok: true,
+    enabled: false,
+    items: [],
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+  harness.listeners.storage(
+    { "javboss:ownership-settings": { newValue: { enabled: false } } },
+    "local",
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(plain(harness.sentMessages), [
+    {
+      tabId: 2,
+      message: { type: "JAVBOSS_OWNERSHIP_SETTINGS_CHANGED", enabled: false },
+    },
+  ]);
+  assert.deepEqual(plain(harness.tabQueries[0].url), [
+    "https://javdb.com/*",
+    "https://www.javbus.com/*",
+    "https://www.javlibrary.com/*",
+  ]);
+  harness.localData.set("javboss:ownership-settings", { enabled: true });
+  assert.equal((await harness.send(message, sender)).items[0].owned, true);
+  assert.equal(harness.fetchCalls.length, 1);
+  harness.listeners.storage(
+    { "javboss:ownership-settings": { newValue: { enabled: true } } },
+    "local",
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(plain(harness.sentMessages.at(-1)), {
+    tabId: 2,
+    message: { type: "JAVBOSS_OWNERSHIP_SETTINGS_CHANGED", enabled: true },
+  });
 });

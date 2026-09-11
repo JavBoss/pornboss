@@ -9,8 +9,9 @@ import (
 // extensionTokenAPIs explicitly enables token authentication per method and route.
 // All other APIs require their normal authentication, regardless of token validity.
 var extensionTokenAPIs = map[string]map[string]bool{
-	"/extension/downloads": {http.MethodPost: true},
-	"/extension/status":    {http.MethodGet: true},
+	"/extension/downloads":     {http.MethodPost: true},
+	"/extension/status":        {http.MethodGet: true},
+	"/extension/jav/ownership": {http.MethodPost: true},
 }
 
 func extensionTokenAPIAllowed(method, path string) bool {
