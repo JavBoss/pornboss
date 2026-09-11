@@ -92,8 +92,6 @@ function normalizedServerURL(value) {
     if (
       !["http:", "https:"].includes(parsed.protocol) ||
       !parsed.hostname ||
-      (parsed.protocol === "http:" &&
-        !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)) ||
       parsed.username ||
       parsed.password
     ) {

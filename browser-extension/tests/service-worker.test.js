@@ -570,9 +570,9 @@ test("an expired token produces a reauthorization message", async () => {
   assert.equal(response.error.includes(TEST_TOKEN), false);
 });
 
-test("remote HTTP and failure to isolate storage fail closed", async () => {
+test("unsupported protocols and failure to isolate storage fail closed", async () => {
   for (const options of [
-    { serverUrl: "http://boss.example" },
+    { serverUrl: "ftp://boss.example" },
     { serverUrl: "https://boss.example", storageFailure: true },
   ]) {
     const harness = createHarness({
@@ -596,11 +596,13 @@ test("remote HTTP and failure to isolate storage fail closed", async () => {
   }
 });
 
-test("loopback servers can use HTTP and messages cannot override the destination", async () => {
+test("servers can use HTTP and messages cannot override the destination", async () => {
   for (const serverUrl of [
     "http://127.0.0.1:17654",
     "http://localhost:17654",
     "http://[::1]:17654",
+    "http://192.168.1.20:17654/javboss",
+    "http://boss.example",
   ]) {
     const harness = createHarness({
       magnetSettings: { enabled: true, serverUrl },
@@ -671,7 +673,7 @@ test("downloads use the latest connection pair and never expose it in change not
 test("ownership batches use connection credentials without enabling downloads", async () => {
   const harness = createHarness({
     connectionSettings: {
-      serverUrl: "https://boss.example/javboss",
+      serverUrl: "http://192.168.1.20:17654/javboss",
       apiToken: TEST_TOKEN,
     },
     responsePayload: {
@@ -693,7 +695,10 @@ test("ownership batches use connection credentials without enabling downloads", 
     ],
   });
   const { url, options } = harness.fetchCalls[0];
-  assert.equal(url, "https://boss.example/javboss/extension/jav/ownership");
+  assert.equal(
+    url,
+    "http://192.168.1.20:17654/javboss/extension/jav/ownership",
+  );
   assert.equal(options.headers.Authorization, `Bearer ${TEST_TOKEN}`);
   assert.equal(options.credentials, "omit");
   assert.equal(options.redirect, "error");
