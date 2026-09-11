@@ -149,15 +149,6 @@ const directoryWorkStatusDisplay = (status) => {
   }
 }
 
-function isWindowsPlatform() {
-  if (typeof navigator === 'undefined') return false
-
-  const platform =
-    navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || ''
-
-  return /windows/i.test(String(platform))
-}
-
 function DirectoryRowIconButton({ label, disabled = false, children, ...props }) {
   return (
     <Tooltip title={label} arrow>
@@ -203,6 +194,7 @@ export default function DirectoryManager({
   onRefresh,
   directoryPickerEnabled = true,
   useHostPaths = false,
+  serverOS = '',
 }) {
   const [path, setPath] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -228,15 +220,19 @@ export default function DirectoryManager({
   const [toolDirectory, setToolDirectory] = useState(null)
   const [toolMode, setToolMode] = useState(DIRECTORY_PROCESS_SIDECAR)
   const [toolLayout, setToolLayout] = useState(DIRECTORY_PROCESS_LAYOUT_PREFIX)
-  const windowsPlatform = isWindowsPlatform()
+  const pathExample = {
+    windows: 'D:\\Videos',
+    darwin: '/Volumes/Videos',
+    linux: '/mnt/videos',
+  }[serverOS]
   const pathPlaceholder = useHostPaths
     ? zh(
         '输入宿主机目录路径，例如 /mnt/disk1/videos',
         'Enter a host folder path, e.g. /mnt/disk1/videos'
       )
-    : windowsPlatform
-      ? zh('输入目录路径，例如 D:\\Videos', 'Enter a folder path, e.g. D:\\Videos')
-      : zh('输入目录路径，例如 /Volumes/Videos', 'Enter a folder path, e.g. /Volumes/Videos')
+    : pathExample
+      ? zh(`输入目录路径，例如 ${pathExample}`, `Enter a folder path, e.g. ${pathExample}`)
+      : zh('输入服务端的完整目录路径', 'Enter the full folder path on the server')
   const pathHelperText = zh(
     directoryPickerEnabled
       ? '建议优先使用“选择目录”，也可以手动输入完整目录路径。'
