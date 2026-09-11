@@ -371,7 +371,7 @@ export default function DownloaderSettingsView() {
             <div className="flex shrink-0 items-center gap-1.5">
               <span
                 role="status"
-                className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${cloudDrive2StatusDisplay.className}`}
+                className={`inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-[11px] font-semibold ring-1 ring-inset ${cloudDrive2StatusDisplay.className}`}
               >
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${cloudDrive2StatusDisplay.dotClassName}`}
@@ -393,9 +393,9 @@ export default function DownloaderSettingsView() {
                       : undefined
                   )
                 }
-                aria-label={zh('重新检测 CloudDrive2', 'Check CloudDrive2 again')}
-                title={zh('重新检测', 'Check again')}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-500 transition hover:bg-gray-50 hover:text-gray-800 disabled:opacity-50"
+                aria-label={zh('检测可用性', 'Check availability')}
+                title={zh('检测可用性', 'Check availability')}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-[14px] text-gray-500 transition hover:bg-gray-50 hover:text-gray-800 disabled:opacity-50"
               >
                 <RefreshRoundedIcon
                   fontSize="inherit"
