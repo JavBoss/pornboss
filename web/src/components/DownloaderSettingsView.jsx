@@ -29,6 +29,8 @@ export default function DownloaderSettingsView() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [settings, setSettings] = useState(null)
   const [form, setForm] = useState(defaultForm)
+  const [behaviorEditing, setBehaviorEditing] = useState(false)
+  const [connectionEditing, setConnectionEditing] = useState(false)
   const [tokenVisible, setTokenVisible] = useState(false)
   const [loading, setLoading] = useState(true)
   const [action, setAction] = useState('')
@@ -37,6 +39,8 @@ export default function DownloaderSettingsView() {
   const [cloudDrive2Status, setCloudDrive2Status] = useState('checking')
   const [cloudDrive2StatusError, setCloudDrive2StatusError] = useState('')
   const cloudDrive2CheckIDRef = useRef(0)
+  const behaviorSnapshotRef = useRef(null)
+  const connectionSnapshotRef = useRef(null)
 
   const checkCloudDrive2 = useCallback(async () => {
     const checkID = cloudDrive2CheckIDRef.current + 1
@@ -84,6 +88,34 @@ export default function DownloaderSettingsView() {
 
   const updateForm = (field, value) => setForm((current) => ({ ...current, [field]: value }))
 
+  const startBehaviorEditing = () => {
+    const { downloadDirectory, localConcurrency, minVideoSizeMB } = form
+    behaviorSnapshotRef.current = { downloadDirectory, localConcurrency, minVideoSizeMB }
+    setBehaviorEditing(true)
+  }
+
+  const exitBehaviorEditing = () => {
+    const snapshot = behaviorSnapshotRef.current
+    setForm((current) => ({ ...current, ...snapshot }))
+    behaviorSnapshotRef.current = null
+    setPickerOpen(false)
+    setBehaviorEditing(false)
+  }
+
+  const startConnectionEditing = () => {
+    const { address, remoteFolder, apiToken } = form
+    connectionSnapshotRef.current = { address, remoteFolder, apiToken }
+    setConnectionEditing(true)
+  }
+
+  const exitConnectionEditing = () => {
+    const snapshot = connectionSnapshotRef.current
+    setForm((current) => ({ ...current, ...snapshot }))
+    connectionSnapshotRef.current = null
+    setTokenVisible(false)
+    setConnectionEditing(false)
+  }
+
   const saveConnection = async () => {
     const payload = {
       address: form.address.trim(),
@@ -93,6 +125,8 @@ export default function DownloaderSettingsView() {
     const saved = await updateCloudDrive2Settings(payload)
     setSettings(saved)
     setTokenVisible(false)
+    connectionSnapshotRef.current = null
+    setConnectionEditing(false)
     void checkCloudDrive2()
     return saved
   }
@@ -104,6 +138,8 @@ export default function DownloaderSettingsView() {
       min_video_size_mb: Number(form.minVideoSizeMB),
     })
     setSettings(saved)
+    behaviorSnapshotRef.current = null
+    setBehaviorEditing(false)
     return saved
   }
 
@@ -123,6 +159,7 @@ export default function DownloaderSettingsView() {
 
   const handleBehaviorSave = (event) => {
     event.preventDefault()
+    if (!behaviorEditing || busy) return
     void runAction(
       'behavior-save',
       () => saveBehavior(),
@@ -132,6 +169,7 @@ export default function DownloaderSettingsView() {
 
   const handleConnectionSave = (event) => {
     event?.preventDefault()
+    if (!connectionEditing || busy) return
     void runAction(
       'connection-save',
       () => saveConnection(),
@@ -200,14 +238,15 @@ export default function DownloaderSettingsView() {
               <div className="flex w-full gap-2 sm:w-3/4">
                 <input
                   id="download-directory"
+                  disabled={!behaviorEditing || busy}
                   value={form.downloadDirectory}
                   onChange={(event) => updateForm('downloadDirectory', event.target.value)}
                   placeholder={zh('请选择或输入本地目录', 'Choose or enter a local directory')}
-                  className="h-9 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500"
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                 />
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={!behaviorEditing || busy}
                   onClick={() => setPickerOpen(true)}
                   aria-label={zh('选择目录', 'Choose directory')}
                   title={zh('选择目录', 'Choose directory')}
@@ -223,9 +262,10 @@ export default function DownloaderSettingsView() {
               </label>
               <select
                 id="local-concurrency"
+                disabled={!behaviorEditing || busy}
                 value={form.localConcurrency}
                 onChange={(event) => updateForm('localConcurrency', Number(event.target.value))}
-                className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-xs outline-none focus:border-blue-500 sm:w-24"
+                className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 sm:w-24"
               >
                 {[1, 2, 3].map((value) => (
                   <option key={value} value={value}>
@@ -249,28 +289,51 @@ export default function DownloaderSettingsView() {
               <div className="relative w-full sm:w-32">
                 <input
                   id="minimum-video-size"
+                  disabled={!behaviorEditing || busy}
                   type="number"
                   min="1"
                   max="102400"
                   value={form.minVideoSizeMB}
                   onChange={(event) => updateForm('minVideoSizeMB', Number(event.target.value))}
-                  className="h-9 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-xs outline-none focus:border-blue-500"
+                  className="h-9 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                   MB
                 </span>
               </div>
             </div>
-            <div className="flex justify-end border-t border-gray-100 pt-3">
-              <button
-                type="submit"
-                disabled={busy}
-                className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
-              >
-                {action === 'behavior-save'
-                  ? zh('保存中…', 'Saving...')
-                  : zh('保存设置', 'Save settings')}
-              </button>
+            <div className="flex justify-end gap-2 border-t border-gray-100 pt-3">
+              {!behaviorEditing && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={startBehaviorEditing}
+                  className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  {zh('编辑', 'Edit')}
+                </button>
+              )}
+              {behaviorEditing && (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={exitBehaviorEditing}
+                    className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {zh('退出编辑', 'Exit editing')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    {action === 'behavior-save'
+                      ? zh('保存中…', 'Saving...')
+                      : zh('保存设置', 'Save settings')}
+                  </button>
+                </>
+              )}
             </div>
           </form>
         </section>
@@ -329,18 +392,20 @@ export default function DownloaderSettingsView() {
                 {zh('CloudDrive2 地址', 'CloudDrive2 address')}
                 <input
                   value={form.address}
+                  disabled={!connectionEditing || busy}
                   onChange={(event) => updateForm('address', event.target.value)}
                   placeholder={defaultForm.address}
-                  className="mt-1 h-9 w-full rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500"
+                  className="mt-1 h-9 w-full rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                 />
               </label>
               <label className="text-xs font-medium text-gray-600">
                 {zh('云端离线目录', 'Remote offline folder')}
                 <input
                   value={form.remoteFolder}
+                  disabled={!connectionEditing || busy}
                   onChange={(event) => updateForm('remoteFolder', event.target.value)}
                   placeholder="/115open/..."
-                  className="mt-1 h-9 w-full rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500"
+                  className="mt-1 h-9 w-full rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                 />
               </label>
               <div className="text-xs font-medium text-gray-600 lg:col-span-2">
@@ -366,11 +431,12 @@ export default function DownloaderSettingsView() {
                 <div className="relative mt-1">
                   <input
                     id="clouddrive2-api-token"
+                    disabled={!connectionEditing || busy}
                     type={tokenVisible ? 'text' : 'password'}
                     value={form.apiToken}
                     onChange={(event) => updateForm('apiToken', event.target.value)}
                     autoComplete="new-password"
-                    className="h-9 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-11 text-xs outline-none focus:border-blue-500"
+                    className="h-9 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-11 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                   />
                   <button
                     type="button"
@@ -390,16 +456,38 @@ export default function DownloaderSettingsView() {
                 </div>
               </div>
             </div>
-            <div className="mt-auto flex justify-end border-t border-gray-100 pt-3">
-              <button
-                type="submit"
-                disabled={busy}
-                className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
-              >
-                {action === 'connection-save'
-                  ? zh('保存中…', 'Saving...')
-                  : zh('保存设置', 'Save settings')}
-              </button>
+            <div className="mt-auto flex justify-end gap-2 border-t border-gray-100 pt-3">
+              {!connectionEditing && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={startConnectionEditing}
+                  className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  {zh('编辑', 'Edit')}
+                </button>
+              )}
+              {connectionEditing && (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={exitConnectionEditing}
+                    className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {zh('退出编辑', 'Exit editing')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    {action === 'connection-save'
+                      ? zh('保存中…', 'Saving...')
+                      : zh('保存设置', 'Save settings')}
+                  </button>
+                </>
+              )}
             </div>
           </form>
         </section>
