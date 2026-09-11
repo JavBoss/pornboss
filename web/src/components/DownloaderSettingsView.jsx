@@ -325,7 +325,7 @@ export default function DownloaderSettingsView() {
                   type="button"
                   disabled={busy}
                   onClick={startBehaviorEditing}
-                  className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                  className="h-8 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   {zh('编辑', 'Edit')}
                 </button>
@@ -336,14 +336,14 @@ export default function DownloaderSettingsView() {
                     type="button"
                     disabled={busy}
                     onClick={exitBehaviorEditing}
-                    className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    className="h-8 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                   >
                     {zh('退出编辑', 'Exit editing')}
                   </button>
                   <button
                     type="submit"
                     disabled={busy}
-                    className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                    className="h-8 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
                   >
                     {action === 'behavior-save'
                       ? zh('保存中…', 'Saving...')
@@ -489,7 +489,7 @@ export default function DownloaderSettingsView() {
                   type="button"
                   disabled={busy}
                   onClick={startConnectionEditing}
-                  className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                  className="h-8 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   {zh('编辑', 'Edit')}
                 </button>
@@ -500,14 +500,14 @@ export default function DownloaderSettingsView() {
                     type="button"
                     disabled={busy}
                     onClick={exitConnectionEditing}
-                    className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    className="h-8 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                   >
                     {zh('退出编辑', 'Exit editing')}
                   </button>
                   <button
                     type="submit"
                     disabled={busy}
-                    className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                    className="h-8 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
                   >
                     {action === 'connection-save'
                       ? zh('保存中…', 'Saving...')
