@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Pagination } from '@mui/material'
+import { Pagination, Tooltip } from '@mui/material'
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
 import CheckOutlinedIcon from '@mui/icons-material/CheckOutlined'
@@ -7,6 +7,7 @@ import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined'
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined'
 import ReplayOutlinedIcon from '@mui/icons-material/ReplayOutlined'
 import AppModal from '@/components/AppModal'
@@ -343,7 +344,7 @@ export default function DownloadsView() {
                             {job.magnet_name || zh('未命名磁力任务', 'Unnamed magnet download')}
                           </span>
                           <span
-                            className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-4 ${
+                            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-4 ${
                               completedWithSkips
                                 ? 'bg-amber-100 text-amber-700'
                                 : job.status === 'completed'
@@ -358,6 +359,25 @@ export default function DownloadsView() {
                             {completedWithSkips
                               ? zh('已完成（有文件跳过）', 'Completed with skipped files')
                               : statusLabel(job.status)}
+                            {job.error_message ? (
+                              <Tooltip
+                                arrow
+                                describeChild
+                                title={
+                                  <span className="whitespace-pre-wrap break-all">
+                                    {job.error_message}
+                                  </span>
+                                }
+                              >
+                                <button
+                                  type="button"
+                                  aria-label={zh('查看错误详情', 'View error details')}
+                                  className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-current focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
+                                >
+                                  <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                                </button>
+                              </Tooltip>
+                            ) : null}
                           </span>
                           <span className="text-[10px] font-medium text-gray-500">
                             {formatTime(job.created_at)}
@@ -460,13 +480,6 @@ export default function DownloadsView() {
                           </span>
                         </div>
                       </>
-                    ) : null}
-                    {job.error_message ? (
-                      <div
-                        className={`mt-1.5 break-words rounded-md px-2 py-1.5 text-[11px] ${completedWithSkips ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}
-                      >
-                        {job.error_message}
-                      </div>
                     ) : null}
                   </article>
                 )
