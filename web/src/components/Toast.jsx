@@ -34,7 +34,9 @@ export default function Toast({ open, message, onClose, duration = 1800, centere
       <div
         role={centered ? 'alert' : 'status'}
         aria-live={centered ? 'assertive' : 'polite'}
-        className="max-w-md rounded-lg bg-zinc-800/95 px-5 py-3 text-center text-sm leading-6 text-white shadow-xl backdrop-blur"
+        className={`max-w-md rounded-lg bg-zinc-800/95 px-5 py-3 text-sm leading-6 text-white shadow-xl backdrop-blur ${
+          centered ? 'text-center' : 'text-left'
+        }`}
       >
         {message}
       </div>
