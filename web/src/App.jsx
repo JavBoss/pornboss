@@ -62,7 +62,6 @@ import SelectionJavTagsModal from '@/components/SelectionJavTagsModal'
 import SelectionTagsModal from '@/components/SelectionTagsModal'
 import TagPickerModal from '@/components/TagPickerModal'
 import Toast from '@/components/Toast'
-import CenterToast from '@/components/CenterToast'
 import SideTabs from '@/components/SideTabs'
 import TopBar from '@/components/TopBar'
 import PlayerModal from '@/components/PlayerModal'
@@ -413,6 +412,7 @@ export default function App() {
   const [javResolvedIdols, setJavResolvedIdols] = useState({})
   const [toastMessage, setToastMessage] = useState('')
   const [toastDuration, setToastDuration] = useState(1800)
+  const [toastId, setToastId] = useState(0)
   const [centerToastMessage, setCenterToastMessage] = useState('')
   const javSortResolution = resolveJavSort({
     javSearchTerm,
@@ -493,6 +493,7 @@ export default function App() {
   const showToast = useCallback((message, duration = 1800) => {
     setToastMessage(String(message || '').trim())
     setToastDuration(duration)
+    setToastId((id) => id + 1)
   }, [])
   const closeToast = useCallback(() => {
     setToastMessage('')
@@ -4427,7 +4428,11 @@ export default function App() {
         )}
       </main>
 
-      <DownloadView open={downloadOpen} onClose={() => setDownloadOpen(false)} />
+      <DownloadView
+        open={downloadOpen}
+        onClose={() => setDownloadOpen(false)}
+        onToast={showToast}
+      />
 
       <JavQueryEditorModal
         open={javQueryEditorOpen}
@@ -5027,12 +5032,14 @@ export default function App() {
         onLogout={logout}
       />
       <Toast
+        key={toastId}
         open={Boolean(toastMessage)}
         message={toastMessage}
         duration={toastDuration}
         onClose={closeToast}
       />
-      <CenterToast
+      <Toast
+        centered
         open={Boolean(centerToastMessage)}
         message={centerToastMessage}
         onClose={closeCenterToast}

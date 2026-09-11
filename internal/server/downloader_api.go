@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,13 +12,17 @@ import (
 	"strings"
 	"time"
 
+	"javboss/internal/clouddrive"
 	"javboss/internal/db"
+	"javboss/internal/downloader"
 	"javboss/internal/models"
 	"javboss/internal/runtimeconfig"
 	"javboss/internal/service"
 	"javboss/internal/util"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type downloaderSettingsResponse struct {
@@ -130,15 +135,82 @@ func getCloudDrive2Token(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"api_token": settings.APIToken})
 }
 
+// testCloudDrive2 accepts optional address, api_token and remote_folder JSON fields.
+// A request without a body tests the saved configuration; a body tests only its supplied values.
 func testCloudDrive2(c *gin.Context) {
+	var request struct {
+		Address      *string `json:"address"`
+		APIToken     *string `json:"api_token"`
+		RemoteFolder *string `json:"remote_folder"`
+	}
+	bindErr := c.ShouldBindJSON(&request)
+	if bindErr != nil && !errors.Is(bindErr, io.EOF) {
+		respondLocalizedError(c, http.StatusBadRequest, "下载器配置格式不正确", "Invalid provider settings")
+		return
+	}
+	var draft *models.DownloaderProviderSettings
+	if bindErr == nil {
+		if request.Address == nil || request.APIToken == nil || request.RemoteFolder == nil {
+			respondLocalizedError(c, http.StatusBadRequest, "请提供地址、API Token 和云端离线目录", "Provide the address, API token, and remote offline folder")
+			return
+		}
+		draft = &models.DownloaderProviderSettings{
+			Provider: models.DownloaderProviderCloudDrive2,
+			Address:  strings.TrimSpace(*request.Address), APIToken: strings.TrimSpace(*request.APIToken),
+			RemoteFolder: strings.TrimSpace(*request.RemoteFolder),
+		}
+		if draft.Address == "" || draft.APIToken == "" || draft.RemoteFolder == "" {
+			respondLocalizedError(c, http.StatusBadRequest, "请填写地址、API Token 和云端离线目录后再检测", "Enter the address, API token, and remote offline folder before testing")
+			return
+		}
+		if len(draft.Address) > 500 || len(draft.RemoteFolder) > 2000 || len(*request.APIToken) > 16384 {
+			respondLocalizedError(c, http.StatusBadRequest, "下载器地址、目录或 API Token 过长", "Downloader address, folder, or API token is too long")
+			return
+		}
+	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
-	result, err := service.TestDownloader(ctx, models.DownloaderProviderCloudDrive2)
+	var result *downloader.TestResult
+	var err error
+	if draft != nil {
+		result, err = service.TestDownloaderWithSettings(ctx, draft)
+	} else {
+		result, err = service.TestDownloader(ctx, models.DownloaderProviderCloudDrive2)
+	}
 	if err != nil {
-		respondLocalizedError(c, http.StatusBadGateway, "下载器连接测试失败："+err.Error(), "Downloader connection test failed: "+err.Error())
+		messageZH, messageEN := cloudDrive2TestErrorMessages(err)
+		respondLocalizedError(c, http.StatusBadGateway, messageZH, messageEN)
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func cloudDrive2TestErrorMessages(err error) (string, string) {
+	var missing *clouddrive.MissingPermissionsError
+	if errors.As(err, &missing) {
+		labels := map[string][2]string{
+			"allow_list":                   {"列出文件", "list files"},
+			"allow_create_folder":          {"创建目录", "create folders"},
+			"allow_read":                   {"读取文件", "read files"},
+			"allow_add_offline_download":   {"添加离线下载", "add offline downloads"},
+			"allow_list_offline_downloads": {"查看离线下载", "list offline downloads"},
+		}
+		var zh, en []string
+		for _, permission := range missing.Permissions {
+			label, ok := labels[permission]
+			if !ok {
+				label = [2]string{permission, permission}
+			}
+			zh, en = append(zh, label[0]), append(en, label[1])
+		}
+		return "API 令牌权限不足，缺少：" + strings.Join(zh, "、") + "。请在 CloudDrive2 中编辑该令牌并开启相应权限。",
+			"The API token is missing permissions: " + strings.Join(en, ", ") + ". Edit this token in CloudDrive2 and enable these permissions."
+	}
+	if status.Code(err) == codes.PermissionDenied {
+		return "API 令牌权限不足或授权目录受限，请在 CloudDrive2 中检查令牌权限，并确认云端离线目录在授权范围内。",
+			"The API token lacks permission or has a restricted folder scope. Check its permissions in CloudDrive2 and ensure the remote offline folder is within the authorized scope."
+	}
+	return "下载器连接测试失败：" + err.Error(), "Downloader connection test failed: " + err.Error()
 }
 
 func loadDownloaderSettingsPayload(ctx context.Context) (*downloaderSettingsResponse, error) {
@@ -162,7 +234,7 @@ func updatedProviderToken(current string, requested *string, clear bool) string 
 	if clear {
 		return ""
 	}
-	if requested != nil && strings.TrimSpace(*requested) != "" {
+	if requested != nil {
 		return strings.TrimSpace(*requested)
 	}
 	return current

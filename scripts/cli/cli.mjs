@@ -1503,7 +1503,7 @@ start 构建镜像并后台启动容器；--build-only 仅构建镜像。
 stop 停止容器，保留容器和数据。
 环境变量：
   JAVBOSS_DOCKER_IMAGE     镜像名称（默认 javboss:local）
-  JAVBOSS_DOCKER_PORT      宿主机端口（默认 8655）
+  JAVBOSS_DOCKER_PORT      宿主机端口（默认 5174）
   JAVBOSS_DOCKER_DATA_DIR  数据目录（默认仓库下 docker-data）`);
     return;
   }

@@ -76,7 +76,7 @@ scripts/cli.sh release linux-x86_64 v0.1.0
 
 也可运行 `./scripts/cli.sh`，在第一层选择 `docker`，再选择 `start` 或 `stop`。
 
-`start` 使用 `compose.local.yaml` 在 Docker 内构建前后端，默认镜像为 `javboss:local`，访问地址为 `http://localhost:8655`。数据保存在仓库根目录的 `docker-data/`，宿主机根目录只读挂载到 `/host`。重复启动会重新构建镜像并按需更新容器，继续使用该数据目录，不会自动迁移其他目录的数据。
+`start` 使用 `compose.local.yaml` 在 Docker 内构建前后端，默认镜像为 `javboss:local`，访问地址为 `http://localhost:5174`。数据保存在仓库根目录的 `docker-data/`，宿主机根目录只读挂载到 `/host`。重复启动会重新构建镜像并按需更新容器，继续使用该数据目录，不会自动迁移其他目录的数据。
 
 更多参数可通过 `./scripts/cli.sh docker --help` 查看。
 

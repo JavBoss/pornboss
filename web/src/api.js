@@ -655,9 +655,11 @@ export async function fetchCloudDrive2Token() {
   return parseJSONResponse(res)
 }
 
-export async function testCloudDrive2() {
+export async function testCloudDrive2(payload) {
   const res = await apiFetch('/downloader/clouddrive2/test', {
     method: 'POST',
+    headers: jsonHeaders,
+    body: payload === undefined ? undefined : JSON.stringify(payload),
   })
   if (!res.ok) throw await apiError(res)
   return parseJSONResponse(res)

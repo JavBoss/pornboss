@@ -10,7 +10,7 @@ services:
         GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
         GOSUMDB: ${GOSUMDB:-sum.golang.org}
     ports:
-      - "${JAVBOSS_DOCKER_PORT:-8655}:17654"
+      - "${JAVBOSS_DOCKER_PORT:-5174}:17654"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

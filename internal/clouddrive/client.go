@@ -102,11 +102,29 @@ func (c *Client) Test(ctx context.Context, folder string) (*ConnectionInfo, erro
 	if err != nil {
 		return nil, fmt.Errorf("get CloudDrive2 token info: %w", err)
 	}
+	permissions := tokenInfo.GetPermissions()
+	var missing []string
+	for _, permission := range []struct {
+		name    string
+		allowed bool
+	}{
+		{"allow_list", permissions.GetAllowList()},
+		{"allow_create_folder", permissions.GetAllowCreateFolder()},
+		{"allow_read", permissions.GetAllowRead()},
+		{"allow_add_offline_download", permissions.GetAllowAddOfflineDownload()},
+		{"allow_list_offline_downloads", permissions.GetAllowListOfflineDownloads()},
+	} {
+		if !permission.allowed {
+			missing = append(missing, permission.name)
+		}
+	}
+	if len(missing) > 0 {
+		return nil, &MissingPermissionsError{Permissions: missing}
+	}
 	remoteFolder, err := c.Find(ctx, folder)
 	if err != nil {
 		return nil, fmt.Errorf("find CloudDrive2 target folder: %w", err)
 	}
-	permissions := tokenInfo.GetPermissions()
 	return &ConnectionInfo{
 		UserName: system.GetUserName(), SystemReady: system.GetSystemReady(), TokenRoot: tokenInfo.GetRootDir(),
 		CanList: permissions.GetAllowList(), CanCreateFolder: permissions.GetAllowCreateFolder(),
