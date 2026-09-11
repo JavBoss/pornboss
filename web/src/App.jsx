@@ -503,6 +503,16 @@ export default function App() {
   const closeCenterToast = useCallback(() => {
     setCenterToastMessage('')
   }, [])
+  const ensureMPVPlaylistAvailable = useCallback(() => {
+    if (!remoteAccess || clientMode) return true
+    showCenterToast(
+      zh(
+        '非本机访问时无法使用 MPV 批量播放，请使用 client 模式',
+        'MPV batch playback is unavailable for remote access. Please use client mode.'
+      )
+    )
+    return false
+  }, [remoteAccess, clientMode, showCenterToast])
   const ensureRevealAvailable = useCallback(() => {
     if (!remoteAccess) return true
     showCenterToast(
@@ -910,6 +920,7 @@ export default function App() {
 
   const playVideosWithMPV = useCallback(
     async (items) => {
+      if (!ensureMPVPlaylistAvailable()) return
       const list = Array.isArray(items) ? items : []
       const targets = list
         .map((video) => {
@@ -941,7 +952,7 @@ export default function App() {
       )
       return true
     },
-    [showCenterToast, showToast]
+    [ensureMPVPlaylistAvailable, showCenterToast, showToast]
   )
 
   const handleJavPlay = useCallback(
@@ -2777,6 +2788,7 @@ export default function App() {
 
   const handlePlaySelection = useCallback(async () => {
     if (selectionPlaying || !mpvEnabled) return
+    if (!ensureMPVPlaylistAvailable()) return
     const targets = selectedList
       .map((item) => {
         const videoId = Number(item?.video_id || item?.video?.id)
@@ -2814,7 +2826,14 @@ export default function App() {
     } finally {
       setSelectionPlaying(false)
     }
-  }, [mpvEnabled, selectedList, selectionPlaying, showCenterToast, showToast])
+  }, [
+    ensureMPVPlaylistAvailable,
+    mpvEnabled,
+    selectedList,
+    selectionPlaying,
+    showCenterToast,
+    showToast,
+  ])
 
   const handleDeleteSelection = useCallback(async () => {
     if (selectionDeleting) return
@@ -3892,6 +3911,7 @@ export default function App() {
   const javSelection = useJavSelection({
     items: javItems,
     mpvEnabled,
+    ensurePlayAvailable: ensureMPVPlaylistAvailable,
     playVideos: playVideosWithMPV,
     showToast,
     showError: showCenterToast,
@@ -3947,6 +3967,7 @@ export default function App() {
 
   const handlePlayAllVideos = useCallback(async () => {
     if (selectionPlaying || videoBulkActionBusy || !mpvEnabled) return
+    if (!ensureMPVPlaylistAvailable()) return
     setSelectionPlaying(true)
     setVideoBulkActionBusy(true)
     try {
@@ -3959,6 +3980,7 @@ export default function App() {
       setSelectionPlaying(false)
     }
   }, [
+    ensureMPVPlaylistAvailable,
     fetchAllMatchingVideos,
     mpvEnabled,
     playVideosWithMPV,
