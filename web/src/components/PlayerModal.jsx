@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import videojs from 'video.js'
 import 'video.js/dist/video-js.css'
 import { createVideoScreenshot, fetchPlaybackInfo } from '@/api'
@@ -310,17 +311,24 @@ export default function PlayerModal({
       onClose={onClose}
       zIndex={1700}
     >
-      <button
-        aria-label={zh('关闭', 'Close')}
-        onClick={onClose}
-        className="absolute right-3 top-3 rounded-full bg-black/60 px-2 py-1 text-sm text-white hover:bg-black/80"
-      >
-        ×
-      </button>
-      <div className="flex flex-col gap-4 p-4">
-        <h2 className="truncate text-lg font-semibold" title={displayName}>
-          {displayName}
-        </h2>
+      <div className="flex flex-col gap-1.5 p-2">
+        <header className="flex min-w-0 items-center gap-2">
+          <h2
+            className="min-w-0 flex-1 truncate text-xs font-semibold leading-4"
+            title={displayName}
+          >
+            {displayName}
+          </h2>
+          <button
+            type="button"
+            aria-label={zh('关闭', 'Close')}
+            title={zh('关闭', 'Close')}
+            onClick={onClose}
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <CloseRoundedIcon sx={{ fontSize: 14 }} />
+          </button>
+        </header>
         <div className="player-shell relative w-full bg-black">
           {screenshotNotice || hotkeyHintVisible ? (
             <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
