@@ -11,8 +11,10 @@ const TEST_TOKEN = "jbe_" + "a".repeat(43);
 function createHarness({
   magnetSettings = null,
   javDBSettings = null,
+  ownershipSettings = null,
   connectionSettings = {},
   storageFailure = false,
+  saveFailure = false,
   permissionGranted = true,
   fetchResponse = { status: 200, body: { authenticated: true } },
   fetchError = null,
@@ -25,6 +27,7 @@ function createHarness({
     "server-token",
     "enabled",
     "javdb-auto-redirect",
+    "ownership-enabled",
     "test-connection",
     "connection-status",
     "status",
@@ -70,12 +73,15 @@ function createHarness({
           if (javDBSettings) {
             stored["javboss:javdb-settings"] = javDBSettings;
           }
+          if (ownershipSettings)
+            stored["javboss:ownership-settings"] = ownershipSettings;
           const requested = new Set(Array.isArray(keys) ? keys : [keys]);
           return Object.fromEntries(
             Object.entries(stored).filter(([key]) => requested.has(key)),
           );
         },
         async set(value) {
+          if (saveFailure) throw new Error("storage write failed");
           storedValues.push(value);
         },
       },
@@ -135,6 +141,40 @@ test("the popup starts with magnet downloads disabled and JavDB redirects enable
   assert.equal(harness.elements.get("server-url").value, "");
   assert.equal(harness.elements.get("enabled").checked, false);
   assert.equal(harness.elements.get("javdb-auto-redirect").checked, true);
+  assert.equal(harness.elements.get("ownership-enabled").checked, true);
+});
+
+test("ownership toggle restores preferences and saves independently of connection settings", async () => {
+  const harness = createHarness({ ownershipSettings: { enabled: false } });
+  await new Promise((resolve) => setImmediate(resolve));
+  const toggle = harness.elements.get("ownership-enabled");
+  assert.equal(toggle.checked, false);
+  assert.equal(toggle.disabled, false);
+  harness.elements.get("server-url").value = "incomplete";
+  for (const enabled of [true, false]) {
+    toggle.checked = enabled;
+    await toggle.listeners.change();
+    assert.equal(toggle.disabled, false);
+    assert.deepEqual(JSON.parse(JSON.stringify(harness.storedValues.at(-1))), {
+      "javboss:ownership-settings": { enabled },
+    });
+  }
+  assert.equal(harness.permissionRequests.length, 0);
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("ownership toggle rolls back when saving fails", async () => {
+  const harness = createHarness({ saveFailure: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  const toggle = harness.elements.get("ownership-enabled");
+  toggle.checked = false;
+  await toggle.listeners.change();
+  assert.equal(toggle.checked, true);
+  assert.equal(toggle.disabled, false);
+  assert.match(
+    harness.elements.get("status").textContent,
+    /storage write failed/,
+  );
 });
 
 test("the popup restores a disabled JavDB auto redirect setting", async () => {

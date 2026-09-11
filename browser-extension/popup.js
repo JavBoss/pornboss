@@ -1,6 +1,7 @@
 (() => {
   const MAGNET_DOWNLOAD_SETTINGS_KEY = "javboss:magnet-download-settings";
   const CONNECTION_SETTINGS_KEY = "javboss:connection-settings";
+  const OWNERSHIP_SETTINGS_KEY = "javboss:ownership-settings";
   const storageReady = chrome.storage.local
     .setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
     .then(
@@ -13,6 +14,7 @@
   const JAVDB_SETTINGS_KEY = "javboss:javdb-settings";
   const serverInput = document.getElementById("server-url");
   const enabledInput = document.getElementById("enabled");
+  const ownershipInput = document.getElementById("ownership-enabled");
   const javDBAutoRedirectInput = document.getElementById("javdb-auto-redirect");
   const testButton = document.getElementById("test-connection");
   const connectionStatus = document.getElementById("connection-status");
@@ -146,6 +148,7 @@
       MAGNET_DOWNLOAD_SETTINGS_KEY,
       CONNECTION_SETTINGS_KEY,
       JAVDB_SETTINGS_KEY,
+      OWNERSHIP_SETTINGS_KEY,
     ]);
     const magnetSettings = stored[MAGNET_DOWNLOAD_SETTINGS_KEY] || {};
     const javDBSettings = stored[JAVDB_SETTINGS_KEY] || {};
@@ -154,6 +157,8 @@
     tokenInput.value = String(connection.apiToken || "");
     enabledInput.checked = magnetSettings.enabled === true;
     javDBAutoRedirectInput.checked = javDBSettings.autoRedirect !== false;
+    ownershipInput.checked = stored[OWNERSHIP_SETTINGS_KEY]?.enabled !== false;
+    ownershipInput.disabled = false;
   }
 
   function persistSettings(values) {
@@ -246,6 +251,15 @@
     javDBAutoRedirectInput.disabled = false;
   });
   testButton.addEventListener("click", testConnection);
+  ownershipInput.addEventListener("change", async () => {
+    const enabled = ownershipInput.checked;
+    ownershipInput.disabled = true;
+    const saved = await persistSettings({
+      [OWNERSHIP_SETTINGS_KEY]: { enabled },
+    });
+    if (!saved) ownershipInput.checked = !enabled;
+    ownershipInput.disabled = false;
+  });
   loadSettings().catch((error) => {
     showStatus(String(error?.message || error || "读取设置失败"), true);
   });

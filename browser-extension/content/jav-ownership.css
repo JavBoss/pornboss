@@ -1,0 +1,70 @@
+.javboss-ownership {
+  display: inline-flex !important;
+  align-items: center !important;
+  margin: 0 0 0 6px !important;
+  padding: 1px 6px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 4px !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  font:
+    600 11px/1.3 system-ui,
+    sans-serif !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+.javboss-ownership[hidden] {
+  display: none !important;
+}
+
+.javboss-ownership[data-javboss-ownership="owned"] {
+  border-color: #86efac !important;
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.javboss-ownership-cover {
+  position: relative !important;
+}
+
+.movie-list .item,
+.movie-list .item > .box,
+.movie-box,
+.videothumblist .video,
+.javboss-ownership-cover {
+  overflow: visible !important;
+}
+
+.videothumblist .video {
+  position: relative !important;
+  vertical-align: top !important;
+}
+
+.javboss-ownership-crop {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  border-radius: inherit !important;
+}
+
+.javboss-ownership-cell {
+  padding: 0 !important;
+  vertical-align: middle !important;
+}
+
+.javboss-ownership-cover > .javboss-ownership,
+.videothumblist .video > .javboss-ownership {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  transform: translateY(-50%) !important;
+  z-index: 2 !important;
+  margin: 0 !important;
+  box-shadow: 0 1px 4px #0003 !important;
+}
+
+.videothumblist .video > .javboss-ownership {
+  transform: none !important;
+}

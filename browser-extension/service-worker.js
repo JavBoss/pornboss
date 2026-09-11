@@ -4,6 +4,11 @@ const SCRAPE_ORIGINS = new Set([
   "https://javdb.com",
   "https://avsox.click",
 ]);
+const OWNERSHIP_ORIGINS = new Set([
+  "https://javdb.com",
+  "https://www.javbus.com",
+  "https://www.javlibrary.com",
+]);
 const RELAY_KEY_PREFIX = "javboss:browser-relay:";
 const RELAY_SESSION_KEY_PREFIX = "javboss:browser-session:";
 const JAVDB_ASSIST_KEY_PREFIX = "javboss:javdb-assist:";
@@ -11,6 +16,7 @@ const LEGACY_RELAY_KEY_PREFIX = "javboss:javbus-relay:";
 const LEGACY_RELAY_SESSION_KEY_PREFIX = "javboss:javbus-session:";
 const MAGNET_DOWNLOAD_SETTINGS_KEY = "javboss:magnet-download-settings";
 const CONNECTION_SETTINGS_KEY = "javboss:connection-settings";
+const OWNERSHIP_SETTINGS_KEY = "javboss:ownership-settings";
 const storageReady = chrome.storage.local
   .setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
   .then(
@@ -122,6 +128,102 @@ async function javDBAutoRedirectEnabled() {
   await requirePrivateStorage();
   const stored = await chrome.storage.local.get(JAVDB_SETTINGS_KEY);
   return stored[JAVDB_SETTINGS_KEY]?.autoRedirect !== false;
+}
+
+async function lookupJavOwnership(message, sender) {
+  let origin;
+  try {
+    origin = new URL(sender.url).origin;
+  } catch {
+    origin = "";
+  }
+  if (!Number.isInteger(sender.tab?.id) || !OWNERSHIP_ORIGINS.has(origin)) {
+    return { ok: false, error: "invalid ownership request origin" };
+  }
+  const codes = message?.codes;
+  if (
+    !Array.isArray(codes) ||
+    codes.length === 0 ||
+    codes.length > 200 ||
+    codes.some(
+      (code) =>
+        typeof code !== "string" ||
+        code.length > 128 ||
+        !/^[a-zA-Z0-9][a-zA-Z0-9 ._-]*$/.test(code),
+    )
+  ) {
+    return { ok: false, error: "invalid movie codes" };
+  }
+  await requirePrivateStorage();
+  const stored = await chrome.storage.local.get([
+    CONNECTION_SETTINGS_KEY,
+    OWNERSHIP_SETTINGS_KEY,
+  ]);
+  if (stored[OWNERSHIP_SETTINGS_KEY]?.enabled === false) {
+    return { ok: true, enabled: false, items: [] };
+  }
+  const connection = stored[CONNECTION_SETTINGS_KEY];
+  const serverUrl = normalizedServerURL(connection?.serverUrl);
+  const token = String(connection?.apiToken || "").trim();
+  if (!serverUrl || !/^jbe_[A-Za-z0-9_-]{43}$/.test(token)) {
+    return {
+      ok: false,
+      error: "请在 JavBoss 助手连接设置中填写 Server 地址和 API 令牌",
+    };
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(
+      new URL("extension/jav/ownership", `${serverUrl}/`).href,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "omit",
+        redirect: "error",
+        signal: controller.signal,
+        body: JSON.stringify({ codes: [...new Set(codes)] }),
+      },
+    );
+    if (response.status === 401) {
+      return { ok: false, error: "API 令牌无效或已过期，请更新扩展连接设置" };
+    }
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: `查询失败（HTTP ${response.status}），请检查 JavBoss 版本和连接设置`,
+      };
+    }
+    const payload = await response.json();
+    const statuses = new Map();
+    if (Array.isArray(payload?.items)) {
+      for (const item of payload.items) {
+        if (
+          typeof item?.code === "string" &&
+          typeof item?.owned === "boolean"
+        ) {
+          statuses.set(item.code, item.owned);
+        }
+      }
+    }
+    if (codes.some((code) => !statuses.has(code))) {
+      return { ok: false, error: "拥有状态响应无效，请检查 JavBoss 版本" };
+    }
+    return {
+      ok: true,
+      items: [...new Set(codes)].map((code) => ({
+        code,
+        owned: statuses.get(code),
+      })),
+    };
+  } catch {
+    return { ok: false, error: "无法查询拥有状态，请检查 JavBoss 连接后重试" };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function submitMagnetDownload(message) {
@@ -445,6 +547,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     operation = magnetDownloadSettings().then(({ enabled }) => ({ enabled }));
   } else if (message?.type === "JAVBOSS_DOWNLOAD_MAGNET") {
     operation = submitMagnetDownload(message);
+  } else if (message?.type === "JAVBOSS_JAV_OWNERSHIP") {
+    operation = lookupJavOwnership(message, sender);
   } else {
     return false;
   }
@@ -482,8 +586,27 @@ chrome.runtime.onInstalled.addListener(() => {
     .catch(() => {});
 });
 
-// Content scripts receive only the enabled flag, never server credentials.
+// Content scripts receive flags and refresh notifications, never credentials.
 chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (
+    areaName === "local" &&
+    (changes[CONNECTION_SETTINGS_KEY] || changes[OWNERSHIP_SETTINGS_KEY])
+  ) {
+    const message = changes[OWNERSHIP_SETTINGS_KEY]
+      ? {
+          type: "JAVBOSS_OWNERSHIP_SETTINGS_CHANGED",
+          enabled: changes[OWNERSHIP_SETTINGS_KEY].newValue?.enabled !== false,
+        }
+      : { type: "JAVBOSS_JAV_OWNERSHIP_REFRESH" };
+    chrome.tabs
+      .query({ url: [...OWNERSHIP_ORIGINS].map((origin) => `${origin}/*`) })
+      .then((tabs) =>
+        Promise.allSettled(
+          tabs.map((tab) => chrome.tabs.sendMessage(tab.id, message)),
+        ),
+      )
+      .catch(() => {});
+  }
   if (
     areaName !== "local" ||
     (!changes[MAGNET_DOWNLOAD_SETTINGS_KEY] &&

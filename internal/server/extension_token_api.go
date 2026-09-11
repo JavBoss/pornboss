@@ -26,13 +26,6 @@ func newExtensionCredential() (string, error) {
 	return extensionTokenPrefix + base64.RawURLEncoding.EncodeToString(raw[:]), nil
 }
 
-func registerExtensionTokenRoutes(router gin.IRoutes) {
-	router.GET("/auth/extension-tokens", listExtensionTokens)
-	router.POST("/auth/extension-tokens", createExtensionToken)
-	router.POST("/auth/extension-tokens/:id/rotate", rotateExtensionToken)
-	router.DELETE("/auth/extension-tokens/:id", deleteExtensionToken)
-}
-
 func listExtensionTokens(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	items, err := dbpkg.ListExtensionTokens(c.Request.Context())

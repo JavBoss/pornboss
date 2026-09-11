@@ -9,6 +9,11 @@ import (
 // ThumbnailQueue abstracts the ability to enqueue thumbnail generation tasks.
 // RegisterRoutes wires handlers onto the provided router.
 func RegisterRoutes(router gin.IRoutes) {
+	router.GET("/auth/extension-tokens", listExtensionTokens)
+	router.POST("/auth/extension-tokens", createExtensionToken)
+	router.POST("/auth/extension-tokens/:id/rotate", rotateExtensionToken)
+	router.DELETE("/auth/extension-tokens/:id", deleteExtensionToken)
+
 	router.GET("/config", getConfig)
 	router.PATCH("/config", updateConfig)
 	router.GET("/tools", getTools)

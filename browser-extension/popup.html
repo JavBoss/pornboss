@@ -35,8 +35,16 @@
           <p id="connection-status" role="status" aria-live="polite"></p>
         </div>
       </section>
-      <section class="settings-section" aria-labelledby="javdb-heading">
-        <h1 id="javdb-heading">JavDB</h1>
+      <section class="settings-section" aria-label="影片状态">
+        <label class="toggle section-toggle" for="ownership-enabled">
+          <span>
+            <strong>显示已拥有状态</strong>
+            <small>在 JavDB、JavBus、JavLibrary 展示影片库拥有标记</small>
+          </span>
+          <input id="ownership-enabled" type="checkbox" disabled />
+        </label>
+      </section>
+      <section class="settings-section" aria-label="JavDB">
         <label class="toggle section-toggle" for="javdb-auto-redirect">
           <span>
             <strong>启用 JavDB 自动跳转</strong>
@@ -45,8 +53,7 @@
           <input id="javdb-auto-redirect" type="checkbox" />
         </label>
       </section>
-      <section class="settings-section" aria-labelledby="magnet-heading">
-        <h1 id="magnet-heading">磁力下载</h1>
+      <section class="settings-section" aria-label="磁力下载">
         <label class="toggle section-toggle" for="enabled">
           <span>
             <strong>启用磁力下载</strong>
