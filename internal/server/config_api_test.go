@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"javboss/internal/common"
@@ -217,6 +218,9 @@ func TestIsRemoteRequest(t *testing.T) {
 			}
 			cfg := map[string]string{}
 			applyRuntimeConfigFields(cfg, test.remoteAddr)
+			if got := cfg["runtime_os"]; got != runtime.GOOS {
+				t.Fatalf("runtime_os = %q, want server OS %q", got, runtime.GOOS)
+			}
 			wantRuntimeValue := "false"
 			if test.want {
 				wantRuntimeValue = "true"

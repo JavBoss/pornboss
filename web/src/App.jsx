@@ -4905,6 +4905,7 @@ export default function App() {
         containerMode={containerMode}
         directoryPickerEnabled={directoryPickerEnabled}
         hostPathPrefixEnabled={hostPathPrefixEnabled}
+        serverOS={config?.runtime_os}
         mpvEnabled={mpvEnabled}
         onCreateDirectory={async (payload) => {
           const created = await createDirectory(payload)

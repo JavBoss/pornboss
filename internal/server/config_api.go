@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -532,6 +533,7 @@ func updateConfig(c *gin.Context) {
 
 func applyRuntimeConfigFields(cfg map[string]string, remoteAddr string) {
 	remoteRequest := isRemoteRequest(remoteAddr)
+	cfg["runtime_os"] = runtime.GOOS
 	cfg["runtime_container"] = strconv.FormatBool(runtimeconfig.ContainerMode())
 	cfg["runtime_remote_request"] = strconv.FormatBool(remoteRequest)
 	cfg["directory_picker_enabled"] = strconv.FormatBool(!runtimeconfig.DisableDirectoryPicker())

@@ -1495,8 +1495,80 @@ async function handleDownload(platformArg) {
   await downloadDependencies(choice);
 }
 
+async function handleDocker(action, args = []) {
+  if (action === "--help" || action === "-h" || args.includes("--help") || args.includes("-h")) {
+    console.log(`用法：scripts/cli.sh docker start [--build-only]
+      scripts/cli.sh docker stop
+start 构建镜像并后台启动容器；--build-only 仅构建镜像。
+stop 停止容器，保留容器和数据。
+环境变量：
+  JAVBOSS_DOCKER_IMAGE     镜像名称（默认 javboss:local）
+  JAVBOSS_DOCKER_PORT      宿主机端口（默认 8655）
+  JAVBOSS_DOCKER_DATA_DIR  数据目录（默认仓库下 docker-data）`);
+    return;
+  }
+  if (!action) {
+    const answer = await inquirer.prompt([
+      {
+        type: "list",
+        name: "action",
+        message: "选择 Docker 操作",
+        choices: [
+          { name: "start", value: "start" },
+          { name: "stop", value: "stop" },
+        ],
+      },
+    ]);
+    action = answer.action;
+  }
+  if (action !== "start" && action !== "stop") {
+    throw new Error(`不支持的 Docker 操作：${action}，请使用 start 或 stop`);
+  }
+  for (const arg of args) {
+    if (action !== "start" || arg !== "--build-only") throw new Error(`未知参数：${arg}`);
+  }
+  if (!(await commandExists("docker"))) {
+    throw new Error("[docker] 未找到 Docker，请先安装 Docker 和 Docker Compose 插件");
+  }
+  try {
+    await runCommandCapture("docker", ["compose", "version"], { cwd: ROOT_DIR });
+  } catch {
+    throw new Error("[docker] Docker Compose 不可用，请安装 Docker Compose 插件");
+  }
+  try {
+    await runCommandCapture("docker", ["info"], { cwd: ROOT_DIR });
+  } catch {
+    throw new Error("[docker] 无法连接 Docker，请确认 Docker 已启动且当前用户有访问权限");
+  }
+
+  const composeArgs = ["compose", "-f", path.join(ROOT_DIR, "compose.local.yaml")];
+  if (action === "stop") {
+    await runCommand("docker", [...composeArgs, "stop", "javboss"], { cwd: ROOT_DIR });
+    console.log("[docker] 容器已停止，数据已保留");
+    return;
+  }
+  console.log("[docker] 构建本地镜像");
+  await runCommand("docker", [...composeArgs, "build", "javboss"], { cwd: ROOT_DIR });
+  if (args.includes("--build-only")) return;
+
+  console.log("[docker] 启动容器");
+  await runCommand("docker", [
+    ...composeArgs, "up", "--detach", "--no-build", "--pull", "never",
+    "--wait", "--wait-timeout", "60", "javboss",
+  ], { cwd: ROOT_DIR });
+  console.log("[docker] 容器已启动，访问地址：");
+  await runCommand("docker", [...composeArgs, "port", "javboss", "17654"], { cwd: ROOT_DIR });
+  console.log("[docker] 查看日志：docker compose -f compose.local.yaml logs -f");
+  console.log("[docker] 停止容器：scripts/cli.sh docker stop");
+}
+
 async function main() {
-  const [action, arg1, arg2] = process.argv.slice(2);
+  const [action, arg1, ...rest] = process.argv.slice(2);
+  const [arg2] = rest;
+  if (action === "docker") {
+    await handleDocker(arg1, rest);
+    return;
+  }
   if (action === "dev") {
     await handleDev(arg1);
     return;
@@ -1521,6 +1593,7 @@ async function main() {
       message: "请选择操作",
       choices: [
         { name: "dev", value: "dev" },
+        { name: "docker", value: "docker" },
         { name: "release", value: "release" },
         { name: "release-browser-extension", value: "release-browser-extension" },
         { name: "download-dependencies", value: "download-dependencies" },
@@ -1528,6 +1601,10 @@ async function main() {
     },
   ]);
 
+  if (mainAction === "docker") {
+    await handleDocker();
+    return;
+  }
   if (mainAction === "dev") {
     await handleDev();
     return;

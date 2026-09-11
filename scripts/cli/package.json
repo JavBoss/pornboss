@@ -10,6 +10,7 @@
     "esbuild": "^0.20.0"
   },
   "scripts": {
-    "build": "esbuild cli.mjs --bundle --platform=node --format=cjs --outfile=build/javboss-cli.cjs"
+    "build": "esbuild cli.mjs --bundle --platform=node --format=cjs --outfile=build/javboss-cli.cjs",
+    "test": "node --test tests/*.test.mjs"
   }
 }

@@ -1,5 +1,6 @@
 .gocache/
 data/
+docker-data/
 *.db
 .DS_Store
 web/node_modules/
