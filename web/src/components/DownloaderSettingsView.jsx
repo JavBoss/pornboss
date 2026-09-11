@@ -42,13 +42,13 @@ export default function DownloaderSettingsView() {
   const behaviorSnapshotRef = useRef(null)
   const connectionSnapshotRef = useRef(null)
 
-  const checkCloudDrive2 = useCallback(async () => {
+  const checkCloudDrive2 = useCallback(async (payload) => {
     const checkID = cloudDrive2CheckIDRef.current + 1
     cloudDrive2CheckIDRef.current = checkID
     setCloudDrive2Status('checking')
     setCloudDrive2StatusError('')
     try {
-      await testCloudDrive2()
+      await testCloudDrive2(payload)
       if (cloudDrive2CheckIDRef.current !== checkID) return
       setCloudDrive2Status('available')
     } catch (checkError) {
@@ -86,7 +86,16 @@ export default function DownloaderSettingsView() {
     }
   }, [checkCloudDrive2])
 
-  const updateForm = (field, value) => setForm((current) => ({ ...current, [field]: value }))
+  const invalidateCloudDrive2Check = () => {
+    cloudDrive2CheckIDRef.current += 1
+    setCloudDrive2Status('unchecked')
+    setCloudDrive2StatusError('')
+  }
+
+  const updateForm = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }))
+    if (['address', 'remoteFolder', 'apiToken'].includes(field)) invalidateCloudDrive2Check()
+  }
 
   const startBehaviorEditing = () => {
     const { downloadDirectory, localConcurrency, minVideoSizeMB } = form
@@ -105,6 +114,7 @@ export default function DownloaderSettingsView() {
   const startConnectionEditing = () => {
     const { address, remoteFolder, apiToken } = form
     connectionSnapshotRef.current = { address, remoteFolder, apiToken }
+    invalidateCloudDrive2Check()
     setConnectionEditing(true)
   }
 
@@ -114,6 +124,7 @@ export default function DownloaderSettingsView() {
     connectionSnapshotRef.current = null
     setTokenVisible(false)
     setConnectionEditing(false)
+    void checkCloudDrive2()
   }
 
   const saveConnection = async () => {
@@ -199,11 +210,17 @@ export default function DownloaderSettingsView() {
             className: 'bg-red-50 text-red-700 ring-red-200',
             dotClassName: 'bg-red-500',
           }
-        : {
-            label: zh('检测中', 'Checking'),
-            className: 'bg-slate-50 text-slate-600 ring-slate-200',
-            dotClassName: 'animate-pulse bg-slate-400',
-          }
+        : cloudDrive2Status === 'unchecked'
+          ? {
+              label: zh('待检测', 'Not checked'),
+              className: 'bg-slate-50 text-slate-600 ring-slate-200',
+              dotClassName: 'bg-slate-400',
+            }
+          : {
+              label: zh('检测中', 'Checking'),
+              className: 'bg-slate-50 text-slate-600 ring-slate-200',
+              dotClassName: 'animate-pulse bg-slate-400',
+            }
 
   return (
     <div className="space-y-3">
@@ -365,7 +382,17 @@ export default function DownloaderSettingsView() {
               <button
                 type="button"
                 disabled={busy || cloudDrive2Status === 'checking'}
-                onClick={() => void checkCloudDrive2()}
+                onClick={() =>
+                  void checkCloudDrive2(
+                    connectionEditing
+                      ? {
+                          address: form.address.trim(),
+                          remote_folder: form.remoteFolder.trim(),
+                          api_token: form.apiToken.trim(),
+                        }
+                      : undefined
+                  )
+                }
                 aria-label={zh('重新检测 CloudDrive2', 'Check CloudDrive2 again')}
                 title={zh('重新检测', 'Check again')}
                 className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-500 transition hover:bg-gray-50 hover:text-gray-800 disabled:opacity-50"

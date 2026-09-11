@@ -444,20 +444,33 @@ func openDownloaderClient(ctx context.Context, provider string) (downloader.Clie
 	if err != nil {
 		return nil, "", err
 	}
+	return openDownloaderClientWithSettings(settings)
+}
+
+func openDownloaderClientWithSettings(settings *models.DownloaderProviderSettings) (downloader.Client, string, error) {
 	if settings.Address == "" || settings.APIToken == "" || settings.RemoteFolder == "" {
 		return nil, "", errors.New("CloudDrive2 is not fully configured")
 	}
-	switch provider {
+	switch settings.Provider {
 	case models.DownloaderProviderCloudDrive2:
 		client, err := downloaderclouddrive2.New(settings.Address, settings.APIToken)
 		return client, settings.RemoteFolder, err
 	default:
-		return nil, "", fmt.Errorf("unsupported download provider %q", provider)
+		return nil, "", fmt.Errorf("unsupported download provider %q", settings.Provider)
 	}
 }
 
 func TestDownloader(ctx context.Context, provider string) (*downloader.TestResult, error) {
-	client, folder, err := openDownloaderClient(ctx, provider)
+	settings, err := db.GetDownloaderProviderSettings(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	return TestDownloaderWithSettings(ctx, settings)
+}
+
+// TestDownloaderWithSettings checks a configuration without persisting it.
+func TestDownloaderWithSettings(ctx context.Context, settings *models.DownloaderProviderSettings) (*downloader.TestResult, error) {
+	client, folder, err := openDownloaderClientWithSettings(settings)
 	if err != nil {
 		return nil, err
 	}

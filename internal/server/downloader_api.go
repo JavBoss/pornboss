@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 
 	"javboss/internal/clouddrive"
 	"javboss/internal/db"
+	"javboss/internal/downloader"
 	"javboss/internal/models"
 	"javboss/internal/runtimeconfig"
 	"javboss/internal/service"
@@ -133,10 +135,48 @@ func getCloudDrive2Token(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"api_token": settings.APIToken})
 }
 
+// testCloudDrive2 accepts optional address, api_token and remote_folder JSON fields.
+// A request without a body tests the saved configuration; a body tests only its supplied values.
 func testCloudDrive2(c *gin.Context) {
+	var request struct {
+		Address      *string `json:"address"`
+		APIToken     *string `json:"api_token"`
+		RemoteFolder *string `json:"remote_folder"`
+	}
+	bindErr := c.ShouldBindJSON(&request)
+	if bindErr != nil && !errors.Is(bindErr, io.EOF) {
+		respondLocalizedError(c, http.StatusBadRequest, "下载器配置格式不正确", "Invalid provider settings")
+		return
+	}
+	var draft *models.DownloaderProviderSettings
+	if bindErr == nil {
+		if request.Address == nil || request.APIToken == nil || request.RemoteFolder == nil {
+			respondLocalizedError(c, http.StatusBadRequest, "请提供地址、API Token 和云端离线目录", "Provide the address, API token, and remote offline folder")
+			return
+		}
+		draft = &models.DownloaderProviderSettings{
+			Provider: models.DownloaderProviderCloudDrive2,
+			Address:  strings.TrimSpace(*request.Address), APIToken: strings.TrimSpace(*request.APIToken),
+			RemoteFolder: strings.TrimSpace(*request.RemoteFolder),
+		}
+		if draft.Address == "" || draft.APIToken == "" || draft.RemoteFolder == "" {
+			respondLocalizedError(c, http.StatusBadRequest, "请填写地址、API Token 和云端离线目录后再检测", "Enter the address, API token, and remote offline folder before testing")
+			return
+		}
+		if len(draft.Address) > 500 || len(draft.RemoteFolder) > 2000 || len(*request.APIToken) > 16384 {
+			respondLocalizedError(c, http.StatusBadRequest, "下载器地址、目录或 API Token 过长", "Downloader address, folder, or API token is too long")
+			return
+		}
+	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
-	result, err := service.TestDownloader(ctx, models.DownloaderProviderCloudDrive2)
+	var result *downloader.TestResult
+	var err error
+	if draft != nil {
+		result, err = service.TestDownloaderWithSettings(ctx, draft)
+	} else {
+		result, err = service.TestDownloader(ctx, models.DownloaderProviderCloudDrive2)
+	}
 	if err != nil {
 		messageZH, messageEN := cloudDrive2TestErrorMessages(err)
 		respondLocalizedError(c, http.StatusBadGateway, messageZH, messageEN)
