@@ -66,6 +66,5 @@ JavBoss 助手的固定扩展 Origin 只可对已配置的接口发起跨域请�
 
 ```sh
 node --test browser-extension/tests/*.test.js
-node --test web/tests/browserExtensionJavOwnership.test.js
 GOCACHE=$(pwd)/.gocache go test ./internal/server ./internal/db
 ```
