@@ -89,11 +89,12 @@ export default function PlayerModal({
 
   useEffect(() => {
     return () => {
-      if (screenshotNoticeTimerRef.current) {
+      if (screenshotNoticeTimerRef.current !== null) {
         window.clearTimeout(screenshotNoticeTimerRef.current)
+        screenshotNoticeTimerRef.current = null
       }
     }
-  }, [])
+  }, [video?.id, video?.location_id])
 
   useEffect(() => {
     if (!video?.id) {
@@ -187,6 +188,8 @@ export default function PlayerModal({
       screenshotInFlightRef.current = true
       createVideoScreenshot(video.id, { second, locationId: video.location_id })
         .then(() => {
+          // A response from a closed player must not recreate its notice timer.
+          if (player.isDisposed()) return
           if (screenshotNoticeTimerRef.current) {
             window.clearTimeout(screenshotNoticeTimerRef.current)
           }
