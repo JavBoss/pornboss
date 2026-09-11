@@ -22,14 +22,8 @@ func NewRouter(staticDir string, auth *AuthService) *gin.Engine {
 	registerAuthRoutes(router, auth)
 	protected := router.Group("/")
 	protected.Use(auth.requireAuth())
-	registerExtensionDownloadRoutes(protected)
-	protected.POST("/extension/jav/ownership", lookupExtensionJavOwnership)
-	protected.GET("/extension/status", func(c *gin.Context) {
-		c.Header("Cache-Control", "no-store")
-		c.JSON(http.StatusOK, gin.H{"authenticated": true})
-	})
+	registerExtensionRoutes(protected)
 	registerProtectedAuthRoutes(protected, auth)
-	registerExtensionTokenRoutes(protected)
 	RegisterRoutes(protected)
 
 	if staticDir != "" {

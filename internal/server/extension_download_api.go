@@ -9,10 +9,6 @@ import (
 
 const javBossExtensionOrigin = "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn"
 
-func registerExtensionDownloadRoutes(router gin.IRoutes) {
-	router.POST("/extension/downloads", createExtensionDownloadJob)
-}
-
 func createExtensionDownloadJob(c *gin.Context) {
 	var request struct {
 		MagnetURL string `json:"magnet_url"`

@@ -52,7 +52,7 @@ func TestCreateDownloadJobAcceptsManualMagnetOnly(t *testing.T) {
 	// CORS is installed before routes, just as in NewRouter.
 	protected := router.Group("/")
 	protected.Use(auth.requireAuth())
-	registerExtensionDownloadRoutes(protected)
+	registerExtensionRoutes(protected)
 	body := `{"magnet_url":"magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567&dn=Manual+Task"}`
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/downloads", strings.NewReader(body))
