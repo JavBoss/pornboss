@@ -116,6 +116,7 @@ services:
       - /:/host
     restart: unless-stopped
 ```
+**v2.1.0 版本此 yaml 文件有所变化，老用户请即时更新**
 
 启动：
 
