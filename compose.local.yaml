@@ -9,10 +9,10 @@ services:
         NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
         GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
         GOSUMDB: ${GOSUMDB:-sum.golang.org}
-    ports:
-      - "${JAVBOSS_DOCKER_PORT:-5174}:17654"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: host
+    command: ["./javboss", "-port", "${JAVBOSS_DOCKER_PORT:-5174}"]
+    environment:
+      JAVBOSS_PROXY_HOST_GATEWAY: "0"
     volumes:
       - type: bind
         source: ${JAVBOSS_DOCKER_DATA_DIR:-./docker-data}

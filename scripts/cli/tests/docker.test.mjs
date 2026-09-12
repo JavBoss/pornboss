@@ -9,7 +9,7 @@ import test from "node:test";
 const cli = fileURLToPath(new URL("../cli.mjs", import.meta.url));
 const root = path.resolve(path.dirname(cli), "../..");
 
-function invoke(t, args, fail = "") {
+function invoke(t, args, fail = "", port = "5174") {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "javboss-docker-test-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const log = path.join(dir, "calls.jsonl");
@@ -26,6 +26,7 @@ if (process.env.DOCKER_TEST_FAIL && args.includes(process.env.DOCKER_TEST_FAIL))
       PATH: `${dir}${path.delimiter}${process.env.PATH}`,
       DOCKER_TEST_LOG: log,
       DOCKER_TEST_FAIL: fail,
+      JAVBOSS_DOCKER_PORT: port,
     },
     encoding: "utf8",
   });
@@ -45,9 +46,9 @@ test("docker start builds before starting, using the repository from any cwd", (
     [...compose, "build", "javboss"],
     [...compose, "up", "--detach", "--no-build", "--pull", "never",
       "--wait", "--wait-timeout", "60", "javboss"],
-    [...compose, "port", "javboss", "17654"],
   ]);
   assert.ok(result.calls.every((call) => call.cwd === root));
+  assert.match(result.stdout, /http:\/\/localhost:5174/);
 });
 
 test("build-only does not start a container", (t) => {
@@ -96,4 +97,16 @@ test("Docker help works without invoking Docker", (t) => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /--build-only/);
   assert.equal(result.calls.length, 0);
+});
+
+test("host networking prints the custom listening port without querying published ports", (t) => {
+  const result = invoke(t, ["docker", "start"], "", "9123");
+  assert.equal(result.status, 0, result.stderr);
+  const compose = ["compose", "-f", path.join(root, "compose.local.yaml")];
+  assert.deepEqual(result.calls.slice(2).map((call) => call.args), [
+    [...compose, "build", "javboss"],
+    [...compose, "up", "--detach", "--no-build", "--pull", "never",
+      "--wait", "--wait-timeout", "60", "javboss"],
+  ]);
+  assert.match(result.stdout, /http:\/\/localhost:9123/);
 });

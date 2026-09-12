@@ -1500,6 +1500,7 @@ async function handleDocker(action, args = []) {
     console.log(`用法：scripts/cli.sh docker start [--build-only]
       scripts/cli.sh docker stop
 start 构建镜像并后台启动容器；--build-only 仅构建镜像。
+容器固定使用 host 网络，直接监听宿主机端口。
 stop 停止容器，保留容器和数据。
 环境变量：
   JAVBOSS_DOCKER_IMAGE     镜像名称（默认 javboss:local）
@@ -1547,6 +1548,7 @@ stop 停止容器，保留容器和数据。
     console.log("[docker] 容器已停止，数据已保留");
     return;
   }
+  console.log("[docker] 网络模式：host");
   console.log("[docker] 构建本地镜像");
   await runCommand("docker", [...composeArgs, "build", "javboss"], { cwd: ROOT_DIR });
   if (args.includes("--build-only")) return;
@@ -1557,7 +1559,7 @@ stop 停止容器，保留容器和数据。
     "--wait", "--wait-timeout", "60", "javboss",
   ], { cwd: ROOT_DIR });
   console.log("[docker] 容器已启动，访问地址：");
-  await runCommand("docker", [...composeArgs, "port", "javboss", "17654"], { cwd: ROOT_DIR });
+  console.log(`http://localhost:${process.env.JAVBOSS_DOCKER_PORT || "5174"}`);
   console.log("[docker] 查看日志：docker compose -f compose.local.yaml logs -f");
   console.log("[docker] 停止容器：scripts/cli.sh docker stop");
 }
