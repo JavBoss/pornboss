@@ -160,12 +160,13 @@ function DirectoryRowIconButton({ label, disabled = false, children, ...props })
           size="small"
           disabled={disabled}
           aria-label={label}
-          className="!h-8 !w-8 !rounded-lg !p-1.5 disabled:!opacity-60"
+          className="!h-7 !w-7 !rounded-md !p-1 disabled:!opacity-60"
           sx={{
             border: '1px solid',
             borderColor: 'grey.300',
             backgroundColor: 'common.white',
             color: 'grey.800',
+            '& .MuiSvgIcon-root': { fontSize: 18 },
             '&:hover': {
               borderColor: 'grey.500',
               backgroundColor: 'grey.100',
@@ -701,7 +702,7 @@ export default function DirectoryManager({
                       }}
                     />
                   </label>
-                  <div className="flex w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1 md:w-auto md:overflow-visible [&>button]:shrink-0 [&>span]:shrink-0">
+                  <div className="mt-2 flex w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1 md:w-auto md:overflow-visible [&>button]:shrink-0 [&>span]:shrink-0">
                     {!isEditing ? (
                       <>
                         {scanningId !== d.id && status !== 'scanning' && (
