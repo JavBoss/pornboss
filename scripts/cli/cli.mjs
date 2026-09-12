@@ -1501,11 +1501,14 @@ async function handleDocker(action, args = []) {
       scripts/cli.sh docker stop
 start 构建镜像并后台启动容器；--build-only 仅构建镜像。
 容器固定使用 host 网络，直接监听宿主机端口。
+容器使用当前用户的 UID/GID，启动前自动创建数据目录。
 stop 停止容器，保留容器和数据。
 环境变量：
   JAVBOSS_DOCKER_IMAGE     镜像名称（默认 javboss:local）
   JAVBOSS_DOCKER_PORT      宿主机端口（默认 5174）
-  JAVBOSS_DOCKER_DATA_DIR  数据目录（默认仓库下 docker-data）`);
+  JAVBOSS_DOCKER_DATA_DIR  数据目录（默认仓库下 docker-data）
+  JAVBOSS_DOCKER_UID       容器用户 ID（默认当前用户，必须非 0）
+  JAVBOSS_DOCKER_GID       容器组 ID（默认当前用户的主组）`);
     return;
   }
   if (!action) {
@@ -1548,16 +1551,34 @@ stop 停止容器，保留容器和数据。
     console.log("[docker] 容器已停止，数据已保留");
     return;
   }
+  const uid = process.env.JAVBOSS_DOCKER_UID || String(process.getuid?.() ?? 1000);
+  const gid = process.env.JAVBOSS_DOCKER_GID || String(process.getgid?.() ?? 1000);
+  if (!/^\d+$/.test(uid) || Number(uid) < 1 || Number(uid) > 4294967294
+      || !/^\d+$/.test(gid) || Number(gid) > 4294967294) {
+    throw new Error("[docker] 请使用有效的非 root UID 和 GID；不要以 root 用户启动脚本，或设置 JAVBOSS_DOCKER_UID/JAVBOSS_DOCKER_GID");
+  }
+  const dataDir = path.resolve(ROOT_DIR, process.env.JAVBOSS_DOCKER_DATA_DIR || "docker-data");
+  const dockerOptions = {
+    cwd: ROOT_DIR,
+    env: {
+      ...process.env,
+      JAVBOSS_DOCKER_UID: uid,
+      JAVBOSS_DOCKER_GID: gid,
+      JAVBOSS_DOCKER_DATA_DIR: dataDir,
+    },
+  };
   console.log("[docker] 网络模式：host");
+  console.log(`[docker] 容器用户：${uid}:${gid}`);
   console.log("[docker] 构建本地镜像");
-  await runCommand("docker", [...composeArgs, "build", "javboss"], { cwd: ROOT_DIR });
+  await runCommand("docker", [...composeArgs, "build", "javboss"], dockerOptions);
   if (args.includes("--build-only")) return;
 
+  await fsp.mkdir(dataDir, { recursive: true });
   console.log("[docker] 启动容器");
   await runCommand("docker", [
     ...composeArgs, "up", "--detach", "--no-build", "--pull", "never",
     "--wait", "--wait-timeout", "60", "javboss",
-  ], { cwd: ROOT_DIR });
+  ], dockerOptions);
   console.log("[docker] 容器已启动，访问地址：");
   console.log(`http://localhost:${process.env.JAVBOSS_DOCKER_PORT || "5174"}`);
   console.log("[docker] 查看日志：docker compose -f compose.local.yaml logs -f");

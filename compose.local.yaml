@@ -3,6 +3,7 @@ name: javboss-local
 services:
   javboss:
     image: ${JAVBOSS_DOCKER_IMAGE:-javboss:local}
+    user: "${JAVBOSS_DOCKER_UID:-1000}:${JAVBOSS_DOCKER_GID:-1000}"
     build:
       context: .
       args:
@@ -17,6 +18,8 @@ services:
       - type: bind
         source: ${JAVBOSS_DOCKER_DATA_DIR:-./docker-data}
         target: /app/data
+        bind:
+          create_host_path: false
       - type: bind
         source: /
         target: /host
