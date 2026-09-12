@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { generateRandomSeed, normalizeUrlStateFromStore } from '@/utils/urlState'
+import { canOpenAlternatePlayer } from '@/utils/playbackCapabilities'
 import {
   addTagToVideos,
   removeTagFromVideos,
@@ -457,7 +458,6 @@ export default function App() {
   const remoteAccess = configFlag(config?.runtime_remote_request)
   const clientMode = configFlag(config?.runtime_client)
   const containerMode = configFlag(config?.runtime_container)
-  const hostPathPrefixEnabled = configFlag(config?.host_path_prefix_enabled, containerMode)
   const desktopIntegrationEnabled = configFlag(config?.desktop_integration_enabled, true)
   const directoryPickerEnabled = configFlag(config?.directory_picker_enabled, true)
   const mpvEnabled = configFlag(config?.mpv_enabled, true)
@@ -514,7 +514,26 @@ export default function App() {
     )
     return false
   }, [remoteAccess, clientMode, showCenterToast])
+  const ensureOpenFileAvailable = useCallback(() => {
+    if (canOpenAlternatePlayer({ containerMode, clientMode, alternatePlayer })) return true
+    showCenterToast(
+      zh(
+        'Docker 模式不支持用默认程序打开文件，请使用浏览器播放。',
+        'Opening files with the default app is unavailable in Docker mode. Use browser playback.'
+      )
+    )
+    return false
+  }, [containerMode, clientMode, alternatePlayer, showCenterToast])
   const ensureRevealAvailable = useCallback(() => {
+    if (containerMode) {
+      showCenterToast(
+        zh(
+          'Docker 模式不支持打开文件所在位置，请在宿主机中访问该目录。',
+          'Revealing file locations is unavailable in Docker mode. Open the directory on the host.'
+        )
+      )
+      return false
+    }
     if (!remoteAccess) return true
     showCenterToast(
       zh(
@@ -523,7 +542,7 @@ export default function App() {
       )
     )
     return false
-  }, [remoteAccess, showCenterToast])
+  }, [containerMode, remoteAccess, showCenterToast])
   const loadTagCategories = useCallback(async () => {
     const categories = await fetchTagCategories()
     setTagCategories(Array.isArray(categories) ? categories : [])
@@ -679,6 +698,7 @@ export default function App() {
 
   const handleOpenAlternatePlayer = useCallback(
     (video) => {
+      if (!ensureOpenFileAvailable()) return
       if (!alternatePlayer) return
       const choices = getVideoLocationChoices(video)
       if (choices.length > 1) {
@@ -687,7 +707,13 @@ export default function App() {
       }
       playVideoWith(choices[0] || video, alternatePlayer)
     },
-    [alternatePlayer, getVideoLocationChoices, openLocationPicker, playVideoWith]
+    [
+      ensureOpenFileAvailable,
+      alternatePlayer,
+      getVideoLocationChoices,
+      openLocationPicker,
+      playVideoWith,
+    ]
   )
 
   const handleRevealVideoFile = useCallback(
@@ -981,6 +1007,7 @@ export default function App() {
 
   const handleJavOpenFile = useCallback(
     (video, item) => {
+      if (!ensureOpenFileAvailable()) return
       const videos = item?.videos || (video ? [video] : [])
       if (videos.length > 1) {
         if (alternatePlayer === 'mpv') {
@@ -999,6 +1026,7 @@ export default function App() {
       handleOpenAlternatePlayer(target)
     },
     [
+      ensureOpenFileAvailable,
       alternatePlayer,
       playVideosWithMPV,
       showCenterToast,
@@ -4410,8 +4438,10 @@ export default function App() {
             bulkActionBusy={videoBulkActionBusy || selectionPlaying}
             mpvEnabled={mpvEnabled}
             openPlayer={handleOpenPlayer}
-            openAlternatePlayer={alternatePlayer ? handleOpenAlternatePlayer : null}
-            revealFile={desktopIntegrationEnabled ? handleRevealVideoFile : null}
+            openAlternatePlayer={
+              containerMode || alternatePlayer ? handleOpenAlternatePlayer : null
+            }
+            revealFile={containerMode || desktopIntegrationEnabled ? handleRevealVideoFile : null}
             alternatePlayerLabel={alternatePlayerLabel}
             setTagPickerFor={openTagEditor}
             onOpenScreenshots={openVideoScreenshots}
@@ -4909,7 +4939,6 @@ export default function App() {
         desktopIntegrationEnabled={desktopIntegrationEnabled}
         containerMode={containerMode}
         directoryPickerEnabled={directoryPickerEnabled}
-        hostPathPrefixEnabled={hostPathPrefixEnabled}
         serverOS={config?.runtime_os}
         mpvEnabled={mpvEnabled}
         onCreateDirectory={async (payload) => {

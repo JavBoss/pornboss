@@ -9,7 +9,8 @@ import { CircularProgress, IconButton, Switch, Tooltip } from '@mui/material'
 
 import DirectoryPickerModal from '@/components/DirectoryPickerModal'
 import AppModal from '@/components/AppModal'
-import { apiHostPath, displayHostPath } from '@/utils/hostPath'
+import { useStore } from '@/store'
+import { apiHostPath, displayHostPath, hostPathsEnabled } from '@/utils/hostPath'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 
@@ -159,12 +160,13 @@ function DirectoryRowIconButton({ label, disabled = false, children, ...props })
           size="small"
           disabled={disabled}
           aria-label={label}
-          className="!h-8 !w-8 !rounded-lg !p-1.5 disabled:!opacity-60"
+          className="!h-7 !w-7 !rounded-md !p-1 disabled:!opacity-60"
           sx={{
             border: '1px solid',
             borderColor: 'grey.300',
             backgroundColor: 'common.white',
             color: 'grey.800',
+            '& .MuiSvgIcon-root': { fontSize: 18 },
             '&:hover': {
               borderColor: 'grey.500',
               backgroundColor: 'grey.100',
@@ -193,9 +195,9 @@ export default function DirectoryManager({
   onScan,
   onRefresh,
   directoryPickerEnabled = true,
-  useHostPaths = false,
   serverOS = '',
 }) {
+  const useHostPaths = useStore((state) => hostPathsEnabled(state.config))
   const [path, setPath] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [pickerTarget, setPickerTarget] = useState(null)
@@ -700,7 +702,7 @@ export default function DirectoryManager({
                       }}
                     />
                   </label>
-                  <div className="flex w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1 md:w-auto md:overflow-visible [&>button]:shrink-0 [&>span]:shrink-0">
+                  <div className="mt-2 flex w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1 md:w-auto md:overflow-visible [&>button]:shrink-0 [&>span]:shrink-0">
                     {!isEditing ? (
                       <>
                         {scanningId !== d.id && status !== 'scanning' && (
@@ -1063,7 +1065,6 @@ export default function DirectoryManager({
       {open && pickerTarget && (
         <DirectoryPickerModal
           initialPath={pickerTarget === 'edit' ? editPath : path}
-          useHostPaths={useHostPaths}
           onClose={() => setPickerTarget(null)}
           onSelect={(selectedPath) => {
             if (pickerTarget === 'edit') setEditPath(displayPath(selectedPath))
