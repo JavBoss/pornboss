@@ -385,8 +385,8 @@ export default function GlobalSettingsModal({
             </h4>
             <p className="mt-1 text-sm text-zinc-500">
               {zh(
-                '优先使用浏览器直接播放，格式或编码不支持时自动转码。请前往“工具”确认 FFmpeg 已安装。',
-                'Videos play directly when supported by your browser, with automatic transcoding as a fallback. Go to Tools to check that FFmpeg is installed.'
+                'Docker 模式下默认使用浏览器播放器，如需使用 MPV 请在本机安装 JavBoss 并开启 Client 模式',
+                'Docker mode uses the browser player by default. To use MPV, install JavBoss on your local machine and enable Client mode.'
               )}
             </p>
           </div>
