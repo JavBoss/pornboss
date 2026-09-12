@@ -20,5 +20,4 @@ services:
       - type: bind
         source: /
         target: /host
-        read_only: true
     restart: unless-stopped

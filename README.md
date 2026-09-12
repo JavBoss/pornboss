@@ -113,7 +113,7 @@ services:
       JAVBOSS_PROXY_HOST_GATEWAY: "0"
     volumes:
       - ./data:/app/data
-      - /:/host:ro # 默认只读挂载，如果需要使用目录整理、文件重命名、文件删除等功能，将末尾的':ro'移除
+      - /:/host
     restart: unless-stopped
 ```
 
