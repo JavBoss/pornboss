@@ -78,7 +78,6 @@ export default function GlobalSettingsModal({
   desktopIntegrationEnabled = true,
   containerMode = false,
   directoryPickerEnabled = true,
-  hostPathPrefixEnabled = false,
   serverOS = '',
   mpvEnabled = true,
   onCreateDirectory,
@@ -1107,7 +1106,6 @@ export default function GlobalSettingsModal({
           onScan={onScanDirectory}
           onRefresh={onRefreshDirectories}
           directoryPickerEnabled={directoryPickerEnabled}
-          useHostPaths={hostPathPrefixEnabled}
           serverOS={serverOS}
         />
       </section>

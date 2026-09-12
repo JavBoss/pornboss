@@ -457,7 +457,6 @@ export default function App() {
   const remoteAccess = configFlag(config?.runtime_remote_request)
   const clientMode = configFlag(config?.runtime_client)
   const containerMode = configFlag(config?.runtime_container)
-  const hostPathPrefixEnabled = configFlag(config?.host_path_prefix_enabled, containerMode)
   const desktopIntegrationEnabled = configFlag(config?.desktop_integration_enabled, true)
   const directoryPickerEnabled = configFlag(config?.directory_picker_enabled, true)
   const mpvEnabled = configFlag(config?.mpv_enabled, true)
@@ -4909,7 +4908,6 @@ export default function App() {
         desktopIntegrationEnabled={desktopIntegrationEnabled}
         containerMode={containerMode}
         directoryPickerEnabled={directoryPickerEnabled}
-        hostPathPrefixEnabled={hostPathPrefixEnabled}
         serverOS={config?.runtime_os}
         mpvEnabled={mpvEnabled}
         onCreateDirectory={async (payload) => {

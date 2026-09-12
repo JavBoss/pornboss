@@ -8,21 +8,18 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import { CircularProgress, IconButton, Tooltip } from '@mui/material'
 import { browseDirectories } from '@/api'
 import AppModal from '@/components/AppModal'
-import { apiHostPath, displayHostPath } from '@/utils/hostPath'
+import { useStore } from '@/store'
+import { apiHostPath, displayHostPath, hostPathsEnabled } from '@/utils/hostPath'
 import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
 
 // Mount when opening; onSelect returns an absolute path understood by the server.
-export default function DirectoryPickerModal({
-  initialPath = '',
-  useHostPaths = false,
-  onSelect,
-  onClose,
-}) {
+export default function DirectoryPickerModal({ initialPath = '', onSelect, onClose }) {
+  const useHostPaths = useStore((state) => hostPathsEnabled(state.config))
   const titleId = useId()
   const pathId = useId()
   const [request, setRequest] = useState(() => ({
-    path: apiHostPath(initialPath, useHostPaths) || (useHostPaths ? '/host' : ''),
+    path: initialPath,
   }))
   const [pathInput, setPathInput] = useState(displayHostPath(request.path, useHostPaths))
   const [listing, setListing] = useState(null)
@@ -34,7 +31,8 @@ export default function DirectoryPickerModal({
     const controller = new AbortController()
     setLoading(true)
     setError('')
-    browseDirectories(request.path, { showHidden, signal: controller.signal })
+    const path = apiHostPath(request.path, useHostPaths) || (useHostPaths ? '/host' : '')
+    browseDirectories(path, { showHidden, signal: controller.signal })
       .then((data) => {
         if (controller.signal.aborted) return
         setListing(data)

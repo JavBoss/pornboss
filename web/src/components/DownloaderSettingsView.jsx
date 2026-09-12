@@ -14,6 +14,8 @@ import {
 } from '@/api'
 import DirectoryPickerModal from '@/components/DirectoryPickerModal'
 import { getErrorMessage } from '@/utils/errors'
+import { useStore } from '@/store'
+import { apiHostPath, displayHostPath, hostPathsEnabled } from '@/utils/hostPath'
 import { zh } from '@/utils/i18n'
 
 const defaultForm = {
@@ -26,6 +28,7 @@ const defaultForm = {
 }
 
 export default function DownloaderSettingsView() {
+  const useHostPaths = useStore((state) => hostPathsEnabled(state.config))
   const [pickerOpen, setPickerOpen] = useState(false)
   const [settings, setSettings] = useState(null)
   const [form, setForm] = useState(defaultForm)
@@ -144,7 +147,7 @@ export default function DownloaderSettingsView() {
 
   const saveBehavior = async () => {
     const saved = await updateDownloaderSettings({
-      download_directory: form.downloadDirectory.trim(),
+      download_directory: apiHostPath(form.downloadDirectory, useHostPaths),
       local_concurrency: Number(form.localConcurrency),
       min_video_size_mb: Number(form.minVideoSizeMB),
     })
@@ -256,7 +259,7 @@ export default function DownloaderSettingsView() {
                 <input
                   id="download-directory"
                   disabled={!behaviorEditing || busy}
-                  value={form.downloadDirectory}
+                  value={displayHostPath(form.downloadDirectory, useHostPaths)}
                   onChange={(event) => updateForm('downloadDirectory', event.target.value)}
                   placeholder={zh('请选择或输入本地目录', 'Choose or enter a local directory')}
                   className="h-9 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"

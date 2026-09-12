@@ -9,7 +9,8 @@ import { CircularProgress, IconButton, Switch, Tooltip } from '@mui/material'
 
 import DirectoryPickerModal from '@/components/DirectoryPickerModal'
 import AppModal from '@/components/AppModal'
-import { apiHostPath, displayHostPath } from '@/utils/hostPath'
+import { useStore } from '@/store'
+import { apiHostPath, displayHostPath, hostPathsEnabled } from '@/utils/hostPath'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 
@@ -193,9 +194,9 @@ export default function DirectoryManager({
   onScan,
   onRefresh,
   directoryPickerEnabled = true,
-  useHostPaths = false,
   serverOS = '',
 }) {
+  const useHostPaths = useStore((state) => hostPathsEnabled(state.config))
   const [path, setPath] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [pickerTarget, setPickerTarget] = useState(null)
@@ -1063,7 +1064,6 @@ export default function DirectoryManager({
       {open && pickerTarget && (
         <DirectoryPickerModal
           initialPath={pickerTarget === 'edit' ? editPath : path}
-          useHostPaths={useHostPaths}
           onClose={() => setPickerTarget(null)}
           onSelect={(selectedPath) => {
             if (pickerTarget === 'edit') setEditPath(displayPath(selectedPath))
