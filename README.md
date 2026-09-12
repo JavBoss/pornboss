@@ -107,13 +107,13 @@ services:
   javboss:
     image: ghcr.io/solr159/javboss:latest
     container_name: javboss
-    ports:
-      - "8655:17654"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: host
+    command: ["./javboss", "-port", "8655"]
+    environment:
+      JAVBOSS_PROXY_HOST_GATEWAY: "0"
     volumes:
       - ./data:/app/data
-      - /:/host:ro # 默认只读挂载，如果需要使用目录整理、文件重命名、文件删除等功能，将末尾的':ro'移除
+      - /:/host
     restart: unless-stopped
 ```
 
