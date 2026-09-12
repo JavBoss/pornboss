@@ -20,6 +20,7 @@ import {
 } from '@/api'
 import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
+import { useStore } from '@/store'
 
 const statusLabels = {
   queued: ['等待处理', 'Queued'],
@@ -138,6 +139,13 @@ async function copyText(value) {
 }
 
 export default function DownloadsView({ onToast }) {
+  const containerMode = useStore((state) =>
+    ['1', 'true', 'yes', 'on'].includes(
+      String(state.config?.runtime_container || '')
+        .trim()
+        .toLowerCase()
+    )
+  )
   const [jobs, setJobs] = useState([])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -388,16 +396,18 @@ export default function DownloadsView({ onToast }) {
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                        <button
-                          type="button"
-                          disabled={busy || !localLocation}
-                          onClick={() => runJobAction(job, revealDownloadLocation)}
-                          aria-label={zh('打开所在位置', 'Reveal in folder')}
-                          title={zh('打开所在位置', 'Reveal in folder')}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          <FolderOpenOutlinedIcon fontSize="inherit" />
-                        </button>
+                        {!containerMode && (
+                          <button
+                            type="button"
+                            disabled={busy || !localLocation}
+                            onClick={() => runJobAction(job, revealDownloadLocation)}
+                            aria-label={zh('打开所在位置', 'Reveal in folder')}
+                            title={zh('打开所在位置', 'Reveal in folder')}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-[16px] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            <FolderOpenOutlinedIcon fontSize="inherit" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleCopyMagnet(job)}
