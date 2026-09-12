@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { generateRandomSeed, normalizeUrlStateFromStore } from '@/utils/urlState'
+import { canOpenAlternatePlayer } from '@/utils/playbackCapabilities'
 import {
   addTagToVideos,
   removeTagFromVideos,
@@ -514,7 +515,7 @@ export default function App() {
     return false
   }, [remoteAccess, clientMode, showCenterToast])
   const ensureOpenFileAvailable = useCallback(() => {
-    if (!containerMode) return true
+    if (canOpenAlternatePlayer({ containerMode, clientMode, alternatePlayer })) return true
     showCenterToast(
       zh(
         'Docker 模式不支持用默认程序打开文件，请使用浏览器播放。',
@@ -522,7 +523,7 @@ export default function App() {
       )
     )
     return false
-  }, [containerMode, showCenterToast])
+  }, [containerMode, clientMode, alternatePlayer, showCenterToast])
   const ensureRevealAvailable = useCallback(() => {
     if (containerMode) {
       showCenterToast(

@@ -103,6 +103,7 @@ export default function DownloaderSettingsView() {
   const startBehaviorEditing = () => {
     const { downloadDirectory, localConcurrency, minVideoSizeMB } = form
     behaviorSnapshotRef.current = { downloadDirectory, localConcurrency, minVideoSizeMB }
+    updateForm('downloadDirectory', displayHostPath(downloadDirectory, useHostPaths))
     setBehaviorEditing(true)
   }
 
@@ -259,7 +260,11 @@ export default function DownloaderSettingsView() {
                 <input
                   id="download-directory"
                   disabled={!behaviorEditing || busy}
-                  value={displayHostPath(form.downloadDirectory, useHostPaths)}
+                  value={
+                    behaviorEditing
+                      ? form.downloadDirectory
+                      : displayHostPath(form.downloadDirectory, useHostPaths)
+                  }
                   onChange={(event) => updateForm('downloadDirectory', event.target.value)}
                   placeholder={zh('请选择或输入本地目录', 'Choose or enter a local directory')}
                   className="h-9 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
@@ -527,7 +532,7 @@ export default function DownloaderSettingsView() {
           initialPath={form.downloadDirectory}
           onClose={() => setPickerOpen(false)}
           onSelect={(selectedPath) => {
-            updateForm('downloadDirectory', selectedPath)
+            updateForm('downloadDirectory', displayHostPath(selectedPath, useHostPaths))
             setPickerOpen(false)
           }}
         />

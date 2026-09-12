@@ -37,3 +37,17 @@ test('native directory paths remain unchanged', () => {
     assert.equal(displayHostPath(path, false), path)
   }
 })
+
+test('path display preserves whitespace while typing and submission normalizes the path', () => {
+  for (const enabled of [false, true]) {
+    let value = displayHostPath(enabled ? '/host/mnt/' : '/mnt/', enabled)
+    for (const character of 'My Videos ') {
+      const typed = value + character
+      value = displayHostPath(typed, enabled)
+      assert.equal(value, typed)
+    }
+    assert.equal(value, '/mnt/My Videos ')
+    assert.equal(apiHostPath(value, enabled), enabled ? '/host/mnt/My Videos' : '/mnt/My Videos')
+    assert.equal(displayHostPath(' /mnt/My Videos ', enabled), ' /mnt/My Videos ')
+  }
+})

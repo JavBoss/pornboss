@@ -6,7 +6,7 @@ export function hostPathsEnabled(config) {
 }
 
 export function displayHostPath(value, enabled = false) {
-  const raw = String(value || '').trim()
+  const raw = String(value || '')
   if (!enabled) return raw
   if (raw === '/host') return '/'
   if (raw.startsWith('/host/')) return raw.slice('/host'.length)
