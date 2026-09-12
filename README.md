@@ -162,11 +162,20 @@ Docker 部署下默认只能使用浏览器播放器（较为简陋且依赖服�
 
 ## Chrome 扩展说明
 
-JavBoss 现在还有一个随程序包一起发布的 Chrome 扩展：`JavBoss 助手`，目前扩展支持以下功能：
-  - **手动刮削辅助回填**：点击视频卡片底部刮削按钮，选择手动刮削，点击跳转到某个 JAV 网站，进入某个影片详情页面后，点击页面右下角按钮可自动提取当前影片信息并回填。
-  - **JavDb 辅助跳转**：在 JAV、女优、片商、系列卡片里点击 JavDb 图标都可直接跳转到对应的 JavDb 详情页面，未启用则还是跳转搜索页。
+`JavBoss 助手` 是随程序包一起发布的可选 Chrome 扩展，目前支持以下功能：
 
-扩展不是必须的，有以上需要的可[点击此处](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-browser-extension-v0.10.3.zip)下载。
+- **手动刮削辅助回填**：点击视频卡片底部刮削按钮，选择手动刮削，再跳转到 JavBus、JavLibrary、JavDB 或 AVSOX。进入影片详情页后，点击页面右下角的“回填到 JavBoss”，即可自动提取影片信息，返回 JavBoss 检查并保存。
+- **JavDB 辅助跳转**：在 JAV、女优、片商、系列卡片中点击 JavDB 图标，可直接跳转到对应详情页。此功能默认开启，关闭后跳转到搜索页。
+- **显示已拥有状态**：在 JavDB、JavBus、JavLibrary 的影片列表和详情页标记“已拥有”，此功能默认开启，可在扩展中关闭。
+- **磁力下载**：开启扩展中的“启用磁力下载”后，在网页点击磁力链接，确认即可提交到 JavBoss 下载队列，通过 CloudDrive2 创建云端离线任务并下载到本地。使用前需在 JavBoss 的“下载”→“下载设置”中配置 CloudDrive2 和本地下载目录。
+
+**连接设置：**`显示已拥有状态`和`磁力下载`需要先连接 JavBoss：
+
+1. 在 JavBoss 的“全局设置”→“安全”→“浏览器扩展 API 令牌”中新建令牌并复制。
+2. 点击浏览器工具栏中的“JavBoss 助手”，在“连接设置”中填写 Server 地址和 API 令牌，点击“测试连接”确认可用。
+3. 按需开启功能，设置修改后自动保存。
+
+扩展不是必须的，有以上需要的可[点击此处](https://github.com/Solr159/JavBoss/releases/download/v2.1.0/javboss-browser-extension-v0.14.0.zip)下载。
 
 
 ## 如何升级版本
