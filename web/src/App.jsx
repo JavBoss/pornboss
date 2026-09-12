@@ -513,7 +513,26 @@ export default function App() {
     )
     return false
   }, [remoteAccess, clientMode, showCenterToast])
+  const ensureOpenFileAvailable = useCallback(() => {
+    if (!containerMode) return true
+    showCenterToast(
+      zh(
+        'Docker 模式不支持用默认程序打开文件，请使用浏览器播放。',
+        'Opening files with the default app is unavailable in Docker mode. Use browser playback.'
+      )
+    )
+    return false
+  }, [containerMode, showCenterToast])
   const ensureRevealAvailable = useCallback(() => {
+    if (containerMode) {
+      showCenterToast(
+        zh(
+          'Docker 模式不支持打开文件所在位置，请在宿主机中访问该目录。',
+          'Revealing file locations is unavailable in Docker mode. Open the directory on the host.'
+        )
+      )
+      return false
+    }
     if (!remoteAccess) return true
     showCenterToast(
       zh(
@@ -522,7 +541,7 @@ export default function App() {
       )
     )
     return false
-  }, [remoteAccess, showCenterToast])
+  }, [containerMode, remoteAccess, showCenterToast])
   const loadTagCategories = useCallback(async () => {
     const categories = await fetchTagCategories()
     setTagCategories(Array.isArray(categories) ? categories : [])
@@ -678,6 +697,7 @@ export default function App() {
 
   const handleOpenAlternatePlayer = useCallback(
     (video) => {
+      if (!ensureOpenFileAvailable()) return
       if (!alternatePlayer) return
       const choices = getVideoLocationChoices(video)
       if (choices.length > 1) {
@@ -686,7 +706,13 @@ export default function App() {
       }
       playVideoWith(choices[0] || video, alternatePlayer)
     },
-    [alternatePlayer, getVideoLocationChoices, openLocationPicker, playVideoWith]
+    [
+      ensureOpenFileAvailable,
+      alternatePlayer,
+      getVideoLocationChoices,
+      openLocationPicker,
+      playVideoWith,
+    ]
   )
 
   const handleRevealVideoFile = useCallback(
@@ -980,6 +1006,7 @@ export default function App() {
 
   const handleJavOpenFile = useCallback(
     (video, item) => {
+      if (!ensureOpenFileAvailable()) return
       const videos = item?.videos || (video ? [video] : [])
       if (videos.length > 1) {
         if (alternatePlayer === 'mpv') {
@@ -998,6 +1025,7 @@ export default function App() {
       handleOpenAlternatePlayer(target)
     },
     [
+      ensureOpenFileAvailable,
       alternatePlayer,
       playVideosWithMPV,
       showCenterToast,
@@ -4409,8 +4437,10 @@ export default function App() {
             bulkActionBusy={videoBulkActionBusy || selectionPlaying}
             mpvEnabled={mpvEnabled}
             openPlayer={handleOpenPlayer}
-            openAlternatePlayer={alternatePlayer ? handleOpenAlternatePlayer : null}
-            revealFile={desktopIntegrationEnabled ? handleRevealVideoFile : null}
+            openAlternatePlayer={
+              containerMode || alternatePlayer ? handleOpenAlternatePlayer : null
+            }
+            revealFile={containerMode || desktopIntegrationEnabled ? handleRevealVideoFile : null}
             alternatePlayerLabel={alternatePlayerLabel}
             setTagPickerFor={openTagEditor}
             onOpenScreenshots={openVideoScreenshots}
